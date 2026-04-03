@@ -1,0 +1,221 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import crypto from 'crypto';
+import path from 'path';
+import fs from 'fs';
+import cookieParser from 'cookie-parser';
+import logger from './utils/logger';
+import { initializePrisma } from './lib/prisma';
+import { validateEnvOrCrash } from './utils/env';
+import { getJwtSecrets, initializeSecretProvider } from './utils/secretProvider';
+import { createRateLimiters, initializeRateLimiterStore } from './middleware/rateLimiter';
+
+const PORT = process.env.PORT || 5000;
+
+const startServer = async () => {
+  await initializeSecretProvider();
+  validateEnvOrCrash(getJwtSecrets());
+  await initializePrisma();
+
+  const store = await initializeRateLimiterStore();
+  const rateLimiters = createRateLimiters(store);
+
+  // Import routes AFTER Prisma initialization
+  const { default: createAuthRouter } = await import('./routes/auth');
+  const { default: userRoutes } = await import('./routes/users');
+  const { default: gradeRoutes } = await import('./routes/grades');
+  const { default: scheduleRoutes } = await import('./routes/schedules');
+  const { default: appointmentRoutes } = await import('./routes/appointments');
+  const { default: settingsRoutes } = await import('./routes/settings');
+  const { default: pagesRoutes } = await import('./routes/pages');
+  const { default: uploadsRoutes } = await import('./routes/uploads');
+  const { default: homepageRoutes } = await import('./routes/homepage');
+  const { default: parentStudentRoutes } = await import('./routes/parentStudent');
+  const { default: attendanceRoutes } = await import('./routes/attendance');
+  const { default: messagesRoutes } = await import('./routes/messages');
+  const { default: behaviorRoutes } = await import('./routes/behavior');
+  const { default: homeworkRoutes } = await import('./routes/homework');
+  const { default: healthRoutes } = await import('./routes/health');
+  const { default: pickupRoutes } = await import('./routes/pickup');
+  const { default: classesRoutes } = await import('./routes/classes');
+  const { default: subjectsRoutes } = await import('./routes/subjects');
+  const { default: academicYearsRoutes } = await import('./routes/academicYears');
+  const { default: reportsRoutes } = await import('./routes/reports');
+  const { default: gradeLocksRoutes } = await import('./routes/gradeLocks');
+  const { default: securityRoutes } = await import('./routes/security');
+
+  const app = express();
+
+  // ── Request ID for distributed tracing ────────────────────────────────
+  app.use((req, res, next) => {
+    const requestId = (req.headers['x-request-id'] as string) || crypto.randomUUID();
+    res.setHeader('X-Request-Id', requestId);
+    (req as any).requestId = requestId;
+    next();
+  });
+
+  // ── Security headers (enterprise-grade Helmet) ────────────────────────
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],  // needed for inline styles
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'", process.env.FRONTEND_URL || 'http://localhost:5173'],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  }));
+
+  // Permissions-Policy (restrict browser features)
+  app.use((_req, res, next) => {
+    res.setHeader('Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=()'
+    );
+    next();
+  });
+
+  app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+    maxAge: 600, // preflight cache 10 min
+  }));
+
+  app.use(cookieParser());
+  app.use(express.json({ limit: '2mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+  // Structured request logger
+  app.use((req, res, next) => {
+    const start = Date.now();
+
+    res.on('finish', () => {
+      const durationMs = Date.now() - start;
+      logger.info({
+        method: req.method,
+        url: req.originalUrl,
+        status: res.statusCode,
+        durationMs,
+      }, `${req.method} ${req.originalUrl} ${res.statusCode}`);
+    });
+
+    next();
+  });
+
+  // Static uploads — serve with security headers
+  const uploadRoot = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadRoot)) {
+    fs.mkdirSync(uploadRoot, { recursive: true });
+  }
+  app.use('/uploads', (_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'");
+    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    next();
+  }, express.static(uploadRoot));
+
+  // Global rate limiting (general API protection)
+  app.use('/api', rateLimiters.apiRateLimiter);
+  // NOTE: Auth-specific rate limiting is handled in routes/auth.ts
+
+  // Health check
+  app.get('/api/health', (req, res) => {
+    res.json({
+      success: true,
+      message: 'Forum de L\'excellence API est en ligne',
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Routes
+  app.use('/api/auth', createAuthRouter({
+    loginRateLimiter: rateLimiters.loginRateLimiter,
+    passwordChangeRateLimiter: rateLimiters.passwordChangeRateLimiter
+  }));
+  app.use('/api/users', userRoutes);
+  app.use('/api/admin/users', userRoutes);
+  app.use('/api/grades', gradeRoutes);
+  app.use('/api/schedules', scheduleRoutes);
+  app.use('/api/appointments', appointmentRoutes);
+  app.use('/api/settings', settingsRoutes);
+  app.use('/api/pages', pagesRoutes);
+  app.use('/api/uploads', uploadsRoutes);
+  app.use('/api/homepage', homepageRoutes);
+  app.use('/api/admin/homepage', homepageRoutes);
+  app.use('/api/parent-students', parentStudentRoutes);
+  app.use('/api/attendance', attendanceRoutes);
+  app.use('/api/messages', messagesRoutes);
+  app.use('/api/behavior', behaviorRoutes);
+  app.use('/api/homework', homeworkRoutes);
+  app.use('/api/health', healthRoutes);
+  app.use('/api/pickup', pickupRoutes);
+  app.use('/api/classes', classesRoutes);
+  app.use('/api/subjects', subjectsRoutes);
+  app.use('/api/academic-years', academicYearsRoutes);
+  app.use('/api/reports', reportsRoutes);
+  app.use('/api/grade-locks', gradeLocksRoutes);
+  app.use('/api/admin/security', securityRoutes);
+
+  // 404 handler
+  app.use((req, res) => {
+    res.status(404).json({
+      success: false,
+      message: 'Route non trouvée'
+    });
+  });
+
+  // Global error handler - NEVER crash the server
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    logger.error({
+      path: req.path,
+      method: req.method,
+      error: err.message,
+      stack: err.stack,
+    }, 'Unhandled server error');
+
+    // Always respond, even if headers already sent
+    if (!res.headersSent) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: process.env.NODE_ENV === 'production'
+          ? 'Une erreur est survenue. Veuillez réessayer.'
+          : err.message || 'Erreur serveur interne'
+      });
+    }
+  });
+
+  // Catch unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error({ reason, promise }, 'Unhandled Rejection');
+  });
+
+  // Catch uncaught exceptions — exit and let a process manager restart
+  process.on('uncaughtException', (error) => {
+    logger.fatal({ error }, 'Uncaught Exception — exiting');
+    process.exit(1);
+  });
+
+  app.listen(PORT, () => {
+    logger.info({ port: PORT, cors: process.env.FRONTEND_URL || 'http://localhost:5173' },
+      `Forum de L'excellence API started on port ${PORT}`);
+  });
+};
+
+startServer().catch((error) => {
+  logger.fatal({ error }, 'Fatal startup error');
+  process.exit(1);
+});

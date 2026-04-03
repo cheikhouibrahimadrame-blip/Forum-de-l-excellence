@@ -1,0 +1,16 @@
+node_modules
+dist
+.env
+.env.*
+*.log
+coverage
+.vscode
+.idea
+*.md
+src/tests
+vitest.config.ts
+nodemon.json
+server-simple.js
+simple-server.js
+uploads/*
+!uploads/.gitkeep

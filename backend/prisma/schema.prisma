@@ -1,0 +1,647 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String               @id @default(uuid()) @db.Uuid
+  email                 String               @unique @db.VarChar(255)
+  password              String               @db.VarChar(255)
+  role                  Role
+  firstName             String               @db.VarChar(100)
+  lastName              String               @db.VarChar(100)
+  phone                 String?              @db.VarChar(20)
+  isActive              Boolean              @default(true)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  mustChangePassword    Boolean              @default(true)
+  tokenVersion          Int                  @default(1)
+  admin                 Admin?
+  receivedAppointments  Appointment[]        @relation("Recipient")
+  requestedAppointments Appointment[]        @relation("Requester")
+  markedAttendance      Attendance[]         @relation("AttendanceMarkedBy")
+  auditLogs             AuditLog[]
+  homeworkChecked       HomeworkSubmission[] @relation("HomeworkCheckedBy")
+  receivedMessages      Message[]            @relation("MessageReceiver")
+  sentMessages          Message[]            @relation("MessageSender")
+  parent                Parent?
+  passwordResetTokens   PasswordResetToken[]
+  pickupVerifications   PickupLog[]          @relation("PickupVerifiedBy")
+  refreshTokens         RefreshToken[]
+  student               Student?
+  teacher               Teacher?
+  sessions              UserSession[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Student {
+  id                  String               @id @default(uuid()) @db.Uuid
+  userId              String               @unique @db.Uuid
+  studentId           String               @unique @db.VarChar(20)
+  dateOfBirth         DateTime             @db.Date
+  enrollmentDate      DateTime             @db.Date
+  graduationDate      DateTime?            @db.Date
+  major               String?              @db.VarChar(100)
+  gpa                 Decimal?             @default(0.00) @db.Decimal(3, 2)
+  status              StudentStatus        @default(ACTIVE)
+  address             String?
+  emergencyContact    Json?
+  attendance          Attendance[]         @relation("StudentAttendance")
+  authorizedPickup    AuthorizedPickup[]   @relation("StudentPickup")
+  behaviors           BehaviorLog[]        @relation("StudentBehavior")
+  enrollments         Enrollment[]
+  grades              Grade[]
+  healthRecord        HealthRecord?        @relation("StudentHealth")
+  homeworkSubmissions HomeworkSubmission[] @relation("StudentHomework")
+  parentStudents      ParentStudent[]
+  pickupLogs          PickupLog[]          @relation("StudentPickupLog")
+  reportCards         ReportCard[]
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+}
+
+model Parent {
+  id             String          @id @default(uuid()) @db.Uuid
+  userId         String          @unique @db.Uuid
+  relationship   String          @db.VarChar(50)
+  occupation     String?         @db.VarChar(100)
+  address        String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentStudents ParentStudent[]
+}
+
+model ParentStudent {
+  id                String  @id @default(uuid()) @db.Uuid
+  parentId          String  @db.Uuid
+  studentId         String  @db.Uuid
+  relationship      String  @db.VarChar(50)
+  isPrimaryContact  Boolean @default(false)
+  canAccessGrades   Boolean @default(true)
+  canAccessSchedule Boolean @default(true)
+  parent            Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student           Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+  @@index([parentId])
+  @@index([studentId])
+}
+
+model Teacher {
+  id               String        @id @default(uuid()) @db.Uuid
+  userId           String        @unique @db.Uuid
+  employeeId       String        @unique @db.VarChar(20)
+  departmentId     String?       @db.Uuid
+  hireDate         DateTime      @db.Date
+  specialization   String?       @db.VarChar(100)
+  qualifications   String[]      @db.VarChar(255)
+  officeLocation   String?       @db.VarChar(100)
+  officeHours      Json?
+  behaviors        BehaviorLog[] @relation("TeacherBehavior")
+  courses          Course[]
+  headedDepartment Department?   @relation("DepartmentHead")
+  grades           Grade[]
+  homeworks        Homework[]    @relation("TeacherHomework")
+  schedules        Schedule[]
+  department       Department?   @relation("DepartmentTeachers", fields: [departmentId], references: [id])
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+model Admin {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid
+  employeeId  String   @unique @db.VarChar(20)
+  department  String?  @db.VarChar(100)
+  permissions Json?
+  hireDate    DateTime @db.Date
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+model Department {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique @db.VarChar(100)
+  code        String    @unique @db.VarChar(10)
+  headId      String?   @unique @db.Uuid
+  description String?
+  createdAt   DateTime  @default(now())
+  courses     Course[]
+  head        Teacher?  @relation("DepartmentHead", fields: [headId], references: [id])
+  programs    Program[]
+  teachers    Teacher[] @relation("DepartmentTeachers")
+}
+
+model Program {
+  id            String     @id @default(uuid()) @db.Uuid
+  name          String     @db.VarChar(200)
+  code          String     @unique @db.VarChar(20)
+  departmentId  String     @db.Uuid
+  degreeType    DegreeType
+  totalCredits  Int
+  durationYears Int
+  description   String?
+  requirements  Json?
+  courses       Course[]
+  department    Department @relation(fields: [departmentId], references: [id])
+
+  @@index([departmentId])
+}
+
+model Course {
+  id            String       @id @default(uuid()) @db.Uuid
+  code          String       @unique @db.VarChar(20)
+  name          String       @db.VarChar(200)
+  description   String?
+  credits       Int
+  departmentId  String       @db.Uuid
+  programId     String?      @db.Uuid
+  prerequisites String[]     @db.VarChar(255)
+  semester      String       @db.VarChar(20)
+  year          Int
+  isActive      Boolean      @default(true)
+  teacherId     String?      @db.Uuid
+  department    Department   @relation(fields: [departmentId], references: [id])
+  program       Program?     @relation(fields: [programId], references: [id])
+  teacher       Teacher?     @relation(fields: [teacherId], references: [id])
+  enrollments   Enrollment[]
+  grades        Grade[]
+  schedules     Schedule[]
+
+  @@index([departmentId])
+  @@index([programId])
+  @@index([teacherId])
+}
+
+model Enrollment {
+  id             String           @id @default(uuid()) @db.Uuid
+  studentId      String           @db.Uuid
+  courseId       String           @db.Uuid
+  enrollmentDate DateTime         @db.Date
+  status         EnrollmentStatus @default(ENROLLED)
+  finalGrade     String?          @db.VarChar(5)
+  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+  @@index([studentId])
+  @@index([courseId])
+}
+
+model Grade {
+  id             String         @id @default(uuid()) @db.Uuid
+  studentId      String         @db.Uuid
+  courseId       String         @db.Uuid
+  teacherId      String         @db.Uuid
+  assignmentName String         @db.VarChar(200)
+  assignmentType AssignmentType
+  pointsEarned   Decimal        @db.Decimal(5, 2)
+  pointsPossible Decimal        @db.Decimal(5, 2)
+  gradeDate      DateTime       @db.Date
+  comments       String?
+  course         Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student        Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher        Teacher        @relation(fields: [teacherId], references: [id])
+
+  @@index([studentId])
+  @@index([courseId])
+  @@index([teacherId])
+}
+
+model Schedule {
+  id        String  @id @default(uuid()) @db.Uuid
+  courseId  String  @db.Uuid
+  teacherId String  @db.Uuid
+  classroom String  @db.VarChar(50)
+  dayOfWeek Int
+  startTime String  @db.VarChar(10)
+  endTime   String  @db.VarChar(10)
+  semester  String  @db.VarChar(20)
+  year      Int
+  isActive  Boolean @default(true)
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+
+  @@index([courseId])
+  @@index([teacherId])
+}
+
+model Appointment {
+  id                String            @id @default(uuid()) @db.Uuid
+  requesterId       String            @db.Uuid
+  recipientId       String            @db.Uuid
+  appointmentType   AppointmentType
+  scheduledDatetime DateTime
+  durationMinutes   Int               @default(30)
+  location          String?           @db.VarChar(100)
+  status            AppointmentStatus @default(PENDING)
+  notes             String?
+  createdAt         DateTime          @default(now())
+  recipient         User              @relation("Recipient", fields: [recipientId], references: [id])
+  requester         User              @relation("Requester", fields: [requesterId], references: [id])
+
+  @@index([requesterId])
+  @@index([recipientId])
+  @@index([status])
+}
+
+model ReportCard {
+  id               String   @id @default(uuid()) @db.Uuid
+  studentId        String   @db.Uuid
+  semester         String   @db.VarChar(20)
+  year             Int
+  gpa              Decimal  @db.Decimal(3, 2)
+  totalCredits     Int
+  academicStanding String   @db.VarChar(50)
+  generatedDate    DateTime @db.Date
+  comments         String?
+  isFinal          Boolean  @default(false)
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, semester, year])
+  @@index([studentId])
+}
+
+model Attendance {
+  id         String           @id @default(uuid()) @db.Uuid
+  studentId  String           @db.Uuid
+  date       DateTime         @db.Date
+  status     AttendanceStatus
+  markedById String           @db.Uuid
+  remarks    String?
+  createdAt  DateTime         @default(now())
+  courseId   String?          @db.Uuid
+  markedBy   User             @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
+  student    Student          @relation("StudentAttendance", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([courseId])
+  @@index([date])
+  @@index([markedById])
+}
+
+model Message {
+  id          String              @id @default(uuid()) @db.Uuid
+  senderId    String              @db.Uuid
+  receiverId  String              @db.Uuid
+  subject     String              @db.VarChar(255)
+  content     String
+  isRead      Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  receiver    User                @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender      User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  attachments MessageAttachment[] @relation("MessageAttachments")
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([isRead])
+}
+
+model MessageAttachment {
+  id        String   @id @default(uuid()) @db.Uuid
+  messageId String   @db.Uuid
+  fileName  String   @db.VarChar(255)
+  fileUrl   String
+  fileType  String   @db.VarChar(50)
+  createdAt DateTime @default(now())
+  message   Message  @relation("MessageAttachments", fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+model BehaviorLog {
+  id          String           @id @default(uuid()) @db.Uuid
+  studentId   String           @db.Uuid
+  teacherId   String           @db.Uuid
+  type        BehaviorType
+  category    BehaviorCategory
+  description String
+  points      Int              @default(0)
+  date        DateTime         @db.Date
+  createdAt   DateTime         @default(now())
+  student     Student          @relation("StudentBehavior", fields: [studentId], references: [id], onDelete: Cascade)
+  teacher     Teacher          @relation("TeacherBehavior", fields: [teacherId], references: [id])
+
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([date])
+}
+
+model Homework {
+  id            String               @id @default(uuid()) @db.Uuid
+  teacherId     String               @db.Uuid
+  subject       String               @db.VarChar(100)
+  title         String               @db.VarChar(255)
+  description   String
+  dueDate       DateTime             @db.Date
+  attachmentUrl String?
+  createdAt     DateTime             @default(now())
+  courseId      String?              @db.Uuid
+  teacher       Teacher              @relation("TeacherHomework", fields: [teacherId], references: [id])
+  submissions   HomeworkSubmission[]
+
+  @@index([courseId])
+  @@index([teacherId])
+  @@index([dueDate])
+}
+
+model HomeworkSubmission {
+  id          String         @id @default(uuid()) @db.Uuid
+  homeworkId  String         @db.Uuid
+  studentId   String         @db.Uuid
+  status      HomeworkStatus @default(PENDING)
+  submittedAt DateTime?
+  checkedById String?        @db.Uuid
+  notes       String?
+  createdAt   DateTime       @default(now())
+  checkedBy   User?          @relation("HomeworkCheckedBy", fields: [checkedById], references: [id])
+  homework    Homework       @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  student     Student        @relation("StudentHomework", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([homeworkId, studentId])
+  @@index([homeworkId])
+  @@index([studentId])
+}
+
+model HealthRecord {
+  id                  String   @id @default(uuid()) @db.Uuid
+  studentId           String   @unique @db.Uuid
+  allergies           String[] @db.VarChar(255)
+  medicalConditions   String[] @db.VarChar(255)
+  bloodType           String?  @db.VarChar(10)
+  medications         String?
+  dietaryRestrictions String?
+  doctorName          String?  @db.VarChar(255)
+  doctorPhone         String?  @db.VarChar(20)
+  hospitalPreference  String?  @db.VarChar(255)
+  insuranceInfo       String?
+  notes               String?
+  updatedAt           DateTime @updatedAt
+  student             Student  @relation("StudentHealth", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+}
+
+model AuthorizedPickup {
+  id           String    @id @default(uuid()) @db.Uuid
+  studentId    String    @db.Uuid
+  name         String    @db.VarChar(255)
+  relationship String    @db.VarChar(50)
+  phone        String    @db.VarChar(20)
+  photoUrl     String?
+  idNumber     String?   @db.VarChar(100)
+  isActive     Boolean   @default(true)
+  validFrom    DateTime?
+  validUntil   DateTime?
+  createdAt    DateTime  @default(now())
+  student      Student   @relation("StudentPickup", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([validUntil])
+}
+
+model PickupLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  studentId    String   @db.Uuid
+  pickedUpBy   String   @db.VarChar(255)
+  pickupTime   DateTime
+  verifiedById String   @db.Uuid
+  notes        String?
+  createdAt    DateTime @default(now())
+  student      Student  @relation("StudentPickupLog", fields: [studentId], references: [id], onDelete: Cascade)
+  verifiedBy   User     @relation("PickupVerifiedBy", fields: [verifiedById], references: [id])
+
+  @@index([studentId])
+  @@index([pickupTime])
+}
+
+model RefreshToken {
+  id        String       @id @default(uuid()) @db.Uuid
+  userId    String       @db.Uuid
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+  tokenHash String       @db.VarChar(128)
+  sessionId String?      @db.Uuid
+  session   UserSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tokenHash])
+  @@index([userId])
+  @@index([sessionId])
+}
+
+model UserSession {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String         @db.Uuid
+  ipAddress     String?        @db.VarChar(64)
+  userAgent     String?
+  createdAt     DateTime       @default(now())
+  lastSeenAt    DateTime?
+  revokedAt     DateTime?
+  deviceIdHash  String?        @db.VarChar(128)
+  refreshTokens RefreshToken[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([revokedAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  action    String   @db.VarChar(100)
+  entity    String   @db.VarChar(100)
+  entityId  String?  @db.Uuid
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  token     String    @unique @db.VarChar(500)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model GeneralSettings {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(255)
+  address   String
+  phone     String   @db.VarChar(20)
+  email     String   @db.VarChar(255)
+  website   String   @db.VarChar(255)
+  principal String   @db.VarChar(255)
+  year      String   @db.VarChar(10)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SecuritySettings {
+  id                  String   @id @default(uuid()) @db.Uuid
+  sessionTimeout      Int      @default(30)
+  passwordMinLength   Int      @default(8)
+  requireUppercase    Boolean  @default(true)
+  requireNumbers      Boolean  @default(true)
+  requireSpecialChars Boolean  @default(true)
+  enableTwoFactor     Boolean  @default(false)
+  maxLoginAttempts    Int      @default(5)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model NotificationSettings {
+  id                   String   @id @default(uuid()) @db.Uuid
+  emailNotifications   Boolean  @default(true)
+  browserNotifications Boolean  @default(true)
+  gradeUpdates         Boolean  @default(true)
+  attendanceAlerts     Boolean  @default(true)
+  appointmentReminders Boolean  @default(true)
+  systemUpdates        Boolean  @default(true)
+  newsletter           Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model AppearanceSettings {
+  id           String   @id @default(uuid()) @db.Uuid
+  theme        String   @default("light") @db.VarChar(50)
+  primaryColor String   @default("#003366") @db.VarChar(7)
+  accentColor  String   @default("#C39D5B") @db.VarChar(7)
+  fontSize     String   @default("medium") @db.VarChar(50)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model DatabaseSettings {
+  id                String   @id @default(uuid()) @db.Uuid
+  autoBackup        Boolean  @default(true)
+  backupFrequency   String   @default("daily") @db.VarChar(50)
+  retentionDays     Int      @default(30)
+  encryptionEnabled Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model EmailSettings {
+  id                      String   @id @default(uuid()) @db.Uuid
+  smtpServer              String   @db.VarChar(255)
+  smtpPort                Int      @default(587)
+  senderEmail             String   @db.VarChar(255)
+  senderName              String   @db.VarChar(255)
+  useSSL                  Boolean  @default(true)
+  enableAutoNotifications Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model SecretRotationAudit {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rotationCount         Int
+  previousAccessSecret  String
+  currentAccessSecret   String
+  previousRefreshSecret String
+  currentRefreshSecret  String
+  rotatedAt             DateTime @default(now())
+  reason                String   @default("automatic_rotation") @db.VarChar(100)
+  rotatedBy             String?  @db.VarChar(255)
+  createdAt             DateTime @default(now())
+
+  @@index([rotatedAt])
+  @@index([reason])
+}
+
+enum Role {
+  STUDENT
+  PARENT
+  TEACHER
+  ADMIN
+}
+
+enum StudentStatus {
+  ACTIVE
+  GRADUATED
+  SUSPENDED
+  DROPPED
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  DROPPED
+  COMPLETED
+  WITHDRAWN
+}
+
+enum AssignmentType {
+  HOMEWORK
+  QUIZ
+  EXAM
+  PROJECT
+  PARTICIPATION
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum AppointmentType {
+  ACADEMIC_ADVISING
+  PARENT_CONFERENCE
+  COUNSELING
+  ADMINISTRATIVE
+  TUTORING
+}
+
+enum DegreeType {
+  CERTIFICATE
+  ASSOCIATE
+  BACHELOR
+  MASTER
+  DOCTORAL
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum BehaviorType {
+  POSITIVE
+  NEGATIVE
+  INCIDENT
+}
+
+enum BehaviorCategory {
+  ACADEMIC
+  SOCIAL
+  DISCIPLINE
+  PARTICIPATION
+  KINDNESS
+}
+
+enum HomeworkStatus {
+  PENDING
+  SUBMITTED
+  COMPLETED
+  LATE
+}
