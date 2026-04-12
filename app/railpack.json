@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": {
+    "node": "22"
+  },
+  "steps": {
+    "install": {
+      "commands": ["npm ci"]
+    },
+    "build": {
+      "inputs": [{ "step": "install" }],
+      "commands": ["npm run build"]
+    }
+  },
+  "deploy": {
+    "startCommand": "npm run preview -- --host 0.0.0.0 --port ${PORT:-4173}"
+  }
+}

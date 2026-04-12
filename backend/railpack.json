@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": {
+    "node": "22"
+  },
+  "steps": {
+    "install": {
+      "commands": ["npm ci"]
+    },
+    "build": {
+      "inputs": [{ "step": "install" }],
+      "commands": ["npx prisma generate", "npm run build"]
+    }
+  },
+  "deploy": {
+    "startCommand": "npx prisma migrate deploy && npm run start"
+  }
+}
