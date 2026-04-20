@@ -48,8 +48,8 @@ cd "C:\Users\DELL\Downloads\OKComputer_College Management System Architecture"
 
 ### Step 2: Login
 - 🌐 http://localhost:5173
-- 📧 khaliloullah6666@gmail.com
-- 🔐 RBFMD5FABJJ
+- 📧 [configured admin email]
+- 🔐 [configured admin password]
 
 ### Step 3: Test
 - Admin > Programs > Click "+ Nouveau Programme"
@@ -375,8 +375,8 @@ cd "C:\Users\DELL\Downloads\OKComputer_College Management System Architecture"
 Then open: **http://localhost:5173**
 
 Login:
-- Email: khaliloullah6666@gmail.com
-- Password: RBFMD5FABJJ
+- Email: [configured admin email]
+- Password: [configured admin password]
 
 Enjoy your new admin dashboard! 🎊
 

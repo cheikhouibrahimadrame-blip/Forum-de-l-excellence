@@ -5,7 +5,7 @@
 ### Option 1: Start Everything at Once (Recommended)
 1. Double-click `start-all.bat` in the root folder
 2. Two terminal windows will open automatically
-3. Backend will start on port 5000
+3. Backend will start on port 5001
 4. Frontend will start on port 5173
 5. Open browser and go to: http://localhost:5173
 
@@ -14,7 +14,7 @@
 #### Backend Server
 1. Open `backend` folder
 2. Double-click `start-backend.bat`
-3. Server will start on http://localhost:5000
+3. Server will start on http://localhost:5001
 
 #### Frontend Server
 1. Open `app` folder
@@ -34,7 +34,7 @@
 Edit `backend/.env`:
 ```
 DATABASE_URL=postgresql://postgres:khaliloulah66@127.0.0.1:5432/forum_excellence?connect_timeout=10
-PORT=5000
+PORT=5001
 INSTITUTION_DOMAINS=gmail.com,institution.edu
 ```
 
@@ -43,7 +43,7 @@ Edit `app/vite.config.ts` if backend port is different:
 ```typescript
 proxy: {
   '/api': {
-    target: 'http://localhost:5000',
+    target: 'http://localhost:5001',
     changeOrigin: true,
   }
 }
@@ -52,8 +52,8 @@ proxy: {
 ## Login Credentials
 
 ```
-Email:    khaliloullah6666@gmail.com
-Password: RBFMD5FABJJ
+Email:    [configured admin email]
+Password: [configured admin password]
 ```
 
 After login, you'll be required to change password on first login.
@@ -61,7 +61,7 @@ After login, you'll be required to change password on first login.
 ## Troubleshooting
 
 ### Port Already in Use
-If you get "port 5000 already in use" or "port 5173 already in use":
+If you get "port 5001 already in use" or "port 5173 already in use":
 - Kill existing Node processes: `taskkill /IM node.exe /F`
 - Or change the PORT in backend/.env
 

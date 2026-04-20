@@ -50,8 +50,9 @@ echo Frontend: http://localhost:5173
 echo Backend:  http://localhost:5001
 echo.
 echo Login credentials:
-echo  Email: khaliloullah6666@gmail.com
-echo  Password: RBFMD5FABJJ
+echo  Email: [configured admin email]
+echo  Password: [configured admin password]
+echo  Note: Set credentials through your seed/setup process.
 echo.
 echo Press any key to exit this window...
 pause >nul

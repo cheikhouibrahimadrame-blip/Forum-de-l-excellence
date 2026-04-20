@@ -171,7 +171,7 @@ FRONTEND_URL=http://localhost:5173
 
 **Frontend (vite env):**
 ```env
-VITE_BACKEND_PORT=5000  # or 5001 for VS Code
+VITE_BACKEND_PORT=5001
 ```
 
 ### 6. Security Features

@@ -8,7 +8,7 @@ interface AuthLayoutProps {
 
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[var(--color-primary-navy)] via-[var(--color-primary-navy)] to-[var(--color-secondary-blue)] flex items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,var(--color-bg-primary)_0%,var(--color-bg-secondary)_55%,var(--color-bg-card)_100%)] p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -17,8 +17,8 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
               <GraduationCap className="w-10 h-10 text-[var(--color-primary-navy)]" />
             </div>
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-white">Forum de L'excellence</h1>
-              <p className="text-sm text-white/80">Collège Privé - M. et Mme Fall</p>
+              <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Forum de L'excellence</h1>
+              <p className="text-sm text-[var(--color-text-secondary)]">Collège Privé - M. et Mme Fall</p>
             </div>
           </Link>
         </div>
@@ -30,7 +30,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
 
         {/* Footer */}
         <div className="mt-6 text-center">
-          <p className="text-sm text-white/70">
+          <p className="text-sm text-[var(--color-text-secondary)]">
             © {new Date().getFullYear()} Forum de L'excellence
           </p>
         </div>

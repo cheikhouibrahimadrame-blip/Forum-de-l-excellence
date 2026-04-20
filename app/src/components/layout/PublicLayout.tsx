@@ -1,18 +1,18 @@
 import type React from 'react';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useTheme } from '../../contexts/ThemeContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { 
-  Menu, 
-  X, 
-  Sun, 
-  Moon, 
-  GraduationCap, 
-  User, 
+import {
+  ChevronDown,
+  GraduationCap,
   LogOut,
-  ChevronDown
+  Menu,
+  Moon,
+  Sun,
+  User,
+  X,
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { api } from '../../lib/api';
 
 interface PublicLayoutProps {
@@ -23,14 +23,15 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [collegeInfo, setCollegeInfo] = useState({
-    name: 'Forum de L\'excellence',
-    address: 'Medinatoul Salam, Mbour, Sénégal',
+    name: "Forum de L'excellence",
+    address: 'Medinatoul Salam, Mbour, Senegal',
     phone: '+221 775368254',
     email: 'gsforumexcellence@gmail.com',
     website: 'www.forumexcellence.sn',
     principal: 'M. et Mme Fall',
-    year: '2025-2026'
+    year: '2025-2026',
   });
+
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -42,18 +43,17 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
     { name: 'Vie du Campus', href: '/campus-life' },
   ];
 
-  // Charger les infos du collège au montage du composant
   useEffect(() => {
     const loadCollegeInfo = async () => {
       try {
         const response = await api.get('/api/settings');
         const data = response.data;
-        
+
         if (data.success && data.data && data.data.general) {
           setCollegeInfo(data.data.general);
         }
       } catch (error) {
-        console.error('Erreur lors du chargement des infos du collège:', error);
+        console.error("Erreur lors du chargement des infos du college:", error);
       }
     };
 
@@ -63,35 +63,41 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   const getDashboardPath = () => {
     if (!user) return '/login';
     switch (user.role) {
-      case 'STUDENT': return '/student';
-      case 'PARENT': return '/parent';
-      case 'TEACHER': return '/teacher';
-      case 'ADMIN': return '/admin';
-      default: return '/login';
+      case 'STUDENT':
+        return '/student';
+      case 'PARENT':
+        return '/parent';
+      case 'TEACHER':
+        return '/teacher';
+      case 'ADMIN':
+        return '/admin';
+      default:
+        return '/login';
     }
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-[var(--color-bg-card)] shadow-sm border-b border-[var(--color-border)]">
+    <div className="min-h-screen bg-[var(--color-bg-primary)] dark:bg-[linear-gradient(135deg,var(--color-bg-primary)_0%,var(--color-bg-secondary)_100%)]">
+      <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-bg-card)] shadow-sm dark:border-[#283244] dark:bg-[linear-gradient(180deg,var(--color-bg-card)_0%,var(--color-bg-secondary)_100%)]">
         <div className="w-full px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
+          <div className="flex h-16 items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
-              <img 
-                src="/logo.jpeg" 
-                alt="Forum de L'excellence" 
-                className="w-10 h-10 rounded-lg object-cover"
+              <img
+                src="/logo.jpeg"
+                alt="Forum de L'excellence"
+                className="h-10 w-10 rounded-lg object-cover"
               />
               <div className="flex flex-col">
-                <span className="text-lg font-bold text-white dark:text-white">Forum de L'excellence</span>
-                <span className="text-xs text-white/80 dark:text-white/80">Collège Privé</span>
+                <span className="text-lg font-bold text-[var(--color-text-primary)] dark:text-[var(--color-text-primary)]">
+                  Forum de L'excellence
+                </span>
+                <span className="text-xs text-[var(--color-text-secondary)] dark:text-[var(--color-text-secondary)]">
+                  College Prive
+                </span>
               </div>
             </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden items-center gap-1 md:flex">
               {navigation.map((item) => (
                 <Link
                   key={item.name}
@@ -103,96 +109,87 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               ))}
             </nav>
 
-            {/* Right side */}
             <div className="flex items-center gap-3">
-              {/* Theme toggle */}
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-lg hover:bg-[var(--color-bg-secondary)] transition-colors"
+                className="rounded-lg p-2 transition-colors hover:bg-[var(--color-bg-secondary)] dark:hover:bg-white/8"
                 aria-label="Toggle theme"
               >
                 {theme === 'light' ? (
-                  <Moon className="w-5 h-5 text-[var(--color-text-secondary)]" />
+                  <Moon className="h-5 w-5 text-[var(--color-text-secondary)]" />
                 ) : (
-                  <Sun className="w-5 h-5 text-[var(--color-text-secondary)]" />
+                  <Sun className="h-5 w-5 text-[var(--color-text-secondary)]" />
                 )}
               </button>
 
-              {/* User menu or login button */}
               {user ? (
                 <div className="relative">
                   <button
-                    onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--color-bg-secondary)] transition-colors"
+                    onClick={() => setUserMenuOpen((prev) => !prev)}
+                    className="flex items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-[var(--color-bg-secondary)] dark:hover:bg-white/8"
                   >
-                    <div className="w-8 h-8 rounded-full bg-[var(--color-primary-navy)] flex items-center justify-center">
-                      <User className="w-4 h-4 text-white" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-primary-navy)] dark:bg-[#1f2937]">
+                      <User className="h-4 w-4 text-white" />
                     </div>
-                    <span className="text-sm font-medium hidden sm:block text-[var(--color-text-primary)]">
+                    <span className="hidden text-sm font-medium text-[var(--color-text-primary)] sm:block dark:text-[var(--color-text-primary)]">
                       {user.firstName}
                     </span>
-                    <ChevronDown className="w-4 h-4 text-[var(--color-text-secondary)]" />
+                    <ChevronDown className="h-4 w-4 text-[var(--color-text-secondary)]" />
                   </button>
 
-                  {/* Dropdown menu */}
                   {userMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-[var(--color-bg-card)] rounded-lg shadow-lg border border-[var(--color-border)] py-1 z-50">
+                    <div className="absolute right-0 z-50 mt-2 w-48 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] py-1 shadow-lg dark:border-[#283244] dark:bg-[var(--color-bg-card)]">
                       <Link
                         to={getDashboardPath()}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)]"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] dark:text-[var(--color-text-primary)] dark:hover:bg-white/8"
                       >
-                        <User className="w-4 h-4" />
+                        <User className="h-4 w-4" />
                         Tableau de bord
                       </Link>
                       <button
                         onClick={logout}
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)]"
+                        className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] dark:text-[var(--color-text-primary)] dark:hover:bg-white/8"
                       >
-                        <LogOut className="w-4 h-4" />
-                        Déconnexion
+                        <LogOut className="h-4 w-4" />
+                        Deconnexion
                       </button>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Link
-                    to="/login"
-                    className="btn-primary text-sm px-4 py-2"
-                  >
-                    Connexion (Admin / Comptes créés)
+                  <Link to="/login" className="btn-primary px-4 py-2 text-sm">
+                    Connexion (Admin / Comptes crees)
                   </Link>
                 </div>
               )}
 
-              {/* Mobile menu button */}
               <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg hover:bg-[var(--color-bg-secondary)] transition-colors"
+                onClick={() => setMobileMenuOpen((prev) => !prev)}
+                className="rounded-lg p-2 transition-colors hover:bg-[var(--color-bg-secondary)] dark:hover:bg-white/8 md:hidden"
               >
                 {mobileMenuOpen ? (
-                  <X className="w-6 h-6 text-[var(--color-text-primary)]" />
+                  <X className="h-6 w-6 text-[var(--color-text-primary)]" />
                 ) : (
-                  <Menu className="w-6 h-6 text-[var(--color-text-primary)]" />
+                  <Menu className="h-6 w-6 text-[var(--color-text-primary)]" />
                 )}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-[var(--color-border)]">
-            <div className="px-2 pt-2 pb-3 space-y-1">
+          <div className="border-t border-[var(--color-border)] dark:border-[#283244] dark:bg-[var(--color-bg-card)] md:hidden">
+            <div className="space-y-1 px-2 pb-3 pt-2">
               {navigation.map((item) => (
                 <Link
                   key={item.name}
                   to={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`block px-3 py-2 rounded-lg text-base font-medium ${
+                  className={`block rounded-lg px-3 py-2 text-base font-medium ${
                     location.pathname === item.href
-                      ? 'bg-[var(--color-primary-gold-light)] text-[var(--color-primary-navy)]'
-                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text-primary)]'
+                      ? 'bg-[var(--color-primary-gold-light)] text-[var(--color-primary-navy)] dark:bg-[var(--color-primary-gold-light)] dark:text-[var(--color-primary-navy)]'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text-primary)] dark:text-[var(--color-text-secondary)] dark:hover:bg-white/8 dark:hover:text-[var(--color-text-primary)]'
                   }`}
                 >
                   {item.name}
@@ -203,74 +200,77 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
         )}
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1">
-        {children}
-      </main>
+      <main className="flex-1">{children}</main>
 
-      {/* Footer */}
-      <footer className="bg-[var(--color-primary-navy)] text-white">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {/* School Info */}
+      <footer className="bg-[var(--color-primary-navy)] text-white dark:bg-[linear-gradient(180deg,var(--color-bg-card)_0%,var(--color-bg-secondary)_100%)] dark:text-[var(--color-text-primary)]">
+        <div className="w-full px-4 py-12 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
             <div className="col-span-1 md:col-span-2">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-lg bg-[var(--color-primary-gold)] flex items-center justify-center">
-                  <GraduationCap className="w-7 h-7 text-[var(--color-primary-navy)]" />
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--color-primary-gold)]">
+                  <GraduationCap className="h-7 w-7 text-[var(--color-primary-navy)]" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">Forum de L'excellence</h3>
-                  <p className="text-sm text-white/80">Collège Privé</p>
+                  <h3 className="text-xl font-bold text-white dark:text-[var(--color-text-primary)]">
+                    Forum de L'excellence
+                  </h3>
+                  <p className="text-sm text-white/80 dark:text-[var(--color-text-secondary)]">College Prive</p>
                 </div>
               </div>
-              <p className="text-white text-sm leading-relaxed max-w-md">
-                Le Forum de L'excellence est un établissement d'enseignement privé dédié à la formation 
-                académique de haute qualité, dirigé par M. et Mme Fall.
+              <p className="max-w-md text-sm leading-relaxed text-white dark:text-[var(--color-text-secondary)]">
+                Le Forum de L'excellence est un etablissement d'enseignement prive dedie a la formation
+                academique de haute qualite, dirige par M. et Mme Fall.
               </p>
             </div>
 
-            {/* Quick Links */}
             <div>
-              <h4 className="text-lg font-semibold mb-4 text-[var(--color-primary-gold)]">Liens Rapides</h4>
+              <h4 className="mb-4 text-lg font-semibold text-[var(--color-primary-gold)]">Liens Rapides</h4>
               <ul className="space-y-2">
                 <li>
-                  <Link to="/programs" className="text-white hover:text-[var(--color-primary-gold)] transition-colors text-sm">
+                  <Link
+                    to="/programs"
+                    className="text-sm text-white transition-colors hover:text-[var(--color-primary-gold)] dark:text-[var(--color-text-secondary)] dark:hover:text-[var(--color-primary-gold)]"
+                  >
                     Nos Programmes
                   </Link>
                 </li>
                 <li>
-                  <Link to="/admissions" className="text-white hover:text-[var(--color-primary-gold)] transition-colors text-sm">
+                  <Link
+                    to="/admissions"
+                    className="text-sm text-white transition-colors hover:text-[var(--color-primary-gold)] dark:text-[var(--color-text-secondary)] dark:hover:text-[var(--color-primary-gold)]"
+                  >
                     Admissions
                   </Link>
                 </li>
                 <li>
-                  <Link to="/campus-life" className="text-white hover:text-[var(--color-primary-gold)] transition-colors text-sm">
+                  <Link
+                    to="/campus-life"
+                    className="text-sm text-white transition-colors hover:text-[var(--color-primary-gold)] dark:text-[var(--color-text-secondary)] dark:hover:text-[var(--color-primary-gold)]"
+                  >
                     Vie du Campus
                   </Link>
                 </li>
               </ul>
             </div>
 
-            {/* Contact Info */}
             <div>
-              <h4 className="text-lg font-semibold mb-4 text-[var(--color-primary-gold)]">Contact</h4>
-              <div className="space-y-2 text-sm text-white">
+              <h4 className="mb-4 text-lg font-semibold text-[var(--color-primary-gold)]">Contact</h4>
+              <div className="space-y-2 text-sm text-white dark:text-[var(--color-text-secondary)]">
                 <p>Directeurs: {collegeInfo.principal}</p>
                 <p>Email: {collegeInfo.email}</p>
-                <p className="break-words">Tél: {collegeInfo.phone}</p>
+                <p className="break-words">Tel: {collegeInfo.phone}</p>
                 <p>{collegeInfo.address}</p>
               </div>
             </div>
           </div>
 
-          {/* Bottom bar */}
-          <div className="mt-8 pt-8 border-t border-slate-600">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-              <p className="text-sm text-slate-400">
-                © {new Date().getFullYear()} Forum de L'excellence. Tous droits réservés.
+          <div className="mt-8 border-t border-white/20 pt-8 dark:border-[#283244]">
+            <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
+              <p className="text-sm text-white/70 dark:text-[var(--color-text-secondary)]">
+                © {new Date().getFullYear()} Forum de L'excellence. Tous droits reserves.
               </p>
               <div className="flex items-center gap-4">
-                <span className="text-sm text-slate-400">Fondé par M. et Mme Fall</span>
+                <span className="text-sm text-white/70 dark:text-[var(--color-text-secondary)]">Fonde par M. et Mme Fall</span>
               </div>
             </div>
           </div>

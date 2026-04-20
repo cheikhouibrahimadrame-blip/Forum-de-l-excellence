@@ -15,8 +15,8 @@ Then open browser to: **http://localhost:5173**
 
 | Field | Value |
 |-------|-------|
-| Email | khaliloullah6666@gmail.com |
-| Password | RBFMD5FABJJ |
+| Email | [configured admin email] |
+| Password | [configured admin password] |
 | Action | Click "Se connecter" |
 
 **Then**: Change password when prompted
@@ -193,7 +193,7 @@ Contact development team to add backend API calls.
 ## 🔗 Important Links
 
 - **Frontend URL**: http://localhost:5173
-- **Backend URL**: http://localhost:5000
+- **Backend URL**: http://localhost:5001
 - **Main Admin Page**: http://localhost:5173/admin
 - **Programs**: http://localhost:5173/admin/programs
 - **Courses**: http://localhost:5173/admin/courses

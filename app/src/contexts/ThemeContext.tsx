@@ -2,6 +2,7 @@ import type React from 'react';
 import { createContext, useContext, useEffect, useState } from 'react';
 
 type Theme = 'light' | 'dark';
+type StoredTheme = Theme | 'auto' | 'system' | null;
 
 interface ThemeContextType {
   theme: Theme;
@@ -11,12 +12,22 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+const getSystemTheme = (): Theme =>
+  window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+const normalizeStoredTheme = (value: StoredTheme): Theme => {
+  if (value === 'dark' || value === 'light') {
+    return value;
+  }
+
+  return getSystemTheme();
+};
+
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('theme') as Theme;
-      if (savedTheme) return savedTheme;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      const savedTheme = localStorage.getItem('theme') as StoredTheme;
+      return normalizeStoredTheme(savedTheme);
     }
     return 'light';
   });

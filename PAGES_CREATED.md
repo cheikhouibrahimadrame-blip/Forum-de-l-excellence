@@ -187,7 +187,7 @@ Tous les contrôleurs sont déjà créés dans le backend avec:
 
 1. **Démarrer le backend:** `npm run dev` (depuis `/backend`)
 2. **Démarrer le frontend:** `npm run dev` (depuis `/app`)
-3. **Se connecter** avec admin: `khaliloullah6666@gmail.com` / `RBFMD5FABJJ`
+3. **Se connecter** avec admin: `[configured admin email]` / `[configured admin password]`
 4. **Accéder aux pages** via le menu du sidebar
 
 ---

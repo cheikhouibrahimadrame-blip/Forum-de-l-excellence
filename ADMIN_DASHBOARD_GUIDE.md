@@ -144,18 +144,18 @@ cd "C:\Users\DELL\Downloads\OKComputer_College Management System Architecture"
 ```
 
 This will:
-- Open terminal 1: Backend (http://localhost:5000)
+- Open terminal 1: Backend (http://localhost:5001)
 - Open terminal 2: Frontend (http://localhost:5173)
 - Show both in 5-10 seconds
 
 ### 2. Login
 - **URL**: http://localhost:5173
-- **Email**: khaliloullah6666@gmail.com
-- **Password**: RBFMD5FABJJ
+- **Email**: [configured admin email]
+- **Password**: [configured admin password]
 - Click "Se connecter"
 
 ### 3. Change Password (if required)
-- Enter current password: RBFMD5FABJJ
+- Enter current password: [configured admin password]
 - Set new password (minimum 8 chars)
 - Click "Mettre à jour"
 - Redirects to Admin Dashboard

@@ -73,8 +73,8 @@ npm run dev
 ```
 
 ### Login Credentials
-- **Email**: khaliloullah6666@gmail.com
-- **Password**: RBFMD5FABJJ (must change on first login)
+- **Email**: [configured admin email]
+- **Password**: [configured admin password] (must change on first login)
 - **Role**: ADMIN
 
 ### Admin Dashboard Navigation
