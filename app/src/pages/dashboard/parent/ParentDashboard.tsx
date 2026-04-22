@@ -2,16 +2,17 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { api } from '../../../lib/api';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 import { 
   Users,
   Award,
   Calendar,
-  MessageSquare,
+  ArrowUpRight,
   BookOpen,
   CheckCircle,
-  Clock
+  Clock,
+  MoreHorizontal,
 } from 'lucide-react';
 
 interface LinkedStudent {
@@ -43,12 +44,9 @@ interface LinkedStudent {
 const ParentDashboard: React.FC = () => {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const refreshTick = useLiveRefresh(15000);
   const [linkedStudents, setLinkedStudents] = useState<LinkedStudent[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(true);
-  const { ref: headerRef, isVisible: headerVisible } = useScrollReveal();
-  const { ref: actionsRef, isVisible: actionsVisible } = useScrollReveal();
-  const { ref: childrenRef, isVisible: childrenVisible } = useScrollReveal();
-  const { ref: activityRef, isVisible: activityVisible } = useScrollReveal();
 
   useEffect(() => {
     console.log('[ParentDashboard] auth state:', {
@@ -101,14 +99,14 @@ const ParentDashboard: React.FC = () => {
       }
       window.history.replaceState({}, document.title);
     }
-  }, [location.state]);
+  }, [location.state, refreshTick]);
 
   const quickActions = [
-    { name: 'Mes Enfants', href: '/parent/children', icon: Users, color: 'text-blue-600' },
-    { name: 'Notes', href: '/parent/grades', icon: Award, color: 'text-green-600' },
-    { name: 'Emplois du Temps', href: '/parent/schedule', icon: Calendar, color: 'text-purple-600' },
-    { name: 'Présences', href: '/parent/attendance', icon: Clock, color: 'text-orange-600' },
-    { name: 'Rendez-vous', href: '/parent/appointments', icon: MessageSquare, color: 'text-amber-600' }
+    { name: 'Mes Enfants', href: '/parent/children', icon: Users },
+    { name: 'Notes', href: '/parent/grades', icon: Award },
+    { name: 'Emplois du Temps', href: '/parent/schedule', icon: Calendar },
+    { name: 'Présences', href: '/parent/attendance', icon: Clock },
+    { name: 'Rendez-vous', href: '/parent/appointments', icon: Calendar },
   ];
 
   const recentActivity: Array<{ icon: React.ElementType; text: string; time: string; color: string }> = [];
@@ -116,165 +114,162 @@ const ParentDashboard: React.FC = () => {
   return (
     <div className="section">
       <div className="section-content">
-        <div className="space-y-8">
-      {/* Welcome Header */}
-      <div
-        ref={headerRef}
-        className={`gradient-card rounded-2xl p-8 text-white ${headerVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
-      >
-        <h1 className="text-3xl font-bold mb-2">
-          Bonjour, {user?.firstName} {user?.lastName}
-        </h1>
-        <p className="text-white/80 text-lg">
-          Bienvenue dans votre espace parent au Forum de L'excellence
-        </p>
-      </div>
-
-      {/* Quick Actions */}
-      <div ref={actionsRef} className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 ${actionsVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
-        {quickActions.map((action, index) => {
-          const Icon = action.icon;
-          const delayClass = ['', 'animation-delay-100', 'animation-delay-200', 'animation-delay-300', 'animation-delay-400'][index] || '';
-          let state = undefined;
-          if (action.href === '/parent/children') state = { scrollTo: 'parent-children' };
-          else if (action.href === '/parent/grades') state = { scrollTo: 'parent-grades' };
-          else if (action.href === '/parent/schedule') state = { scrollTo: 'parent-schedule' };
-          else if (action.href === '/parent/attendance') state = { scrollTo: 'parent-attendance' };
-          else if (action.href === '/parent/appointments') state = { scrollTo: 'parent-appointments' };
-          let cardId = undefined;
-          if (action.href === '/parent/children') cardId = 'parent-card-children';
-          else if (action.href === '/parent/grades') cardId = 'parent-card-grades';
-          else if (action.href === '/parent/schedule') cardId = 'parent-card-schedule';
-          else if (action.href === '/parent/attendance') cardId = 'parent-card-attendance';
-          else if (action.href === '/parent/appointments') cardId = 'parent-card-appointments';
-          return (
-            <div key={index} className={`${actionsVisible ? 'animate-fade-in-up' : 'opacity-0'} ${delayClass}`}>
-              <Link
-                to={action.href}
-                state={state}
-                id={cardId}
-                className="card p-6 text-center group hover:shadow-lg transition-all duration-300 h-full flex flex-col items-center justify-center"
-              >
-                <Icon className={`w-8 h-8 mx-auto mb-3 ${action.color} group-hover:scale-110 transition-transform`} />
-                <h3 className="text-sm font-semibold text-[var(--color-text-primary)] whitespace-normal">{action.name}</h3>
-              </Link>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Children Overview */}
-      <div ref={childrenRef} className={`space-y-4 ${childrenVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
-        <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">Mes Enfants</h2>
-        
-        {loadingStudents ? (
-          <div className="card p-8 text-center">
-            <p className="text-[var(--color-text-secondary)]">Chargement des élèves...</p>
-          </div>
-        ) : linkedStudents.length === 0 ? (
-          <div className="card p-8 text-center">
-            <Users className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-muted)]" />
-            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Aucun enfant associé pour le moment</h3>
-            <p className="text-[var(--color-text-secondary)]">
-              Veuillez contacter l'administration pour lier votre compte à celui de votre enfant.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {linkedStudents.map((student, index) => {
-              const delayClass = ['', 'animation-delay-150'][index] || '';
-              const courseName = student.enrollments?.[0]?.course?.program?.name || 'Non inscrit';
-              
-              return (
-                <div key={student.id} className={`card p-6 ${childrenVisible ? 'animate-fade-in-up' : 'opacity-0'} ${delayClass}`}>
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="text-xl font-semibold text-[var(--color-text-primary)]">
-                        {student.user.firstName} {student.user.lastName}
-                      </h3>
-                      <p className="text-sm text-[var(--color-text-secondary)]">{courseName}</p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-[var(--color-primary-gold-light)] flex items-center justify-center">
-                      <Users className="w-6 h-6 text-[var(--color-primary-navy)]" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="text-center p-4 bg-[var(--color-bg-secondary)] rounded-lg">
-                      <div className="text-2xl font-bold text-[var(--color-primary-navy)]">{student.gpa || '0.00'}</div>
-                      <p className="text-xs text-[var(--color-text-secondary)]">Moyenne</p>
-                    </div>
-                    <div className="text-center p-4 bg-[var(--color-bg-secondary)] rounded-lg">
-                      <div className="text-2xl font-bold text-[var(--color-primary-navy)]">-</div>
-                      <p className="text-xs text-[var(--color-text-secondary)]">Rang</p>
-                    </div>
-                    <div className="text-center p-4 bg-[var(--color-bg-secondary)] rounded-lg">
-                      <div className="text-2xl font-bold text-[var(--color-primary-navy)]">-</div>
-                      <p className="text-xs text-[var(--color-text-secondary)]">Présence</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                        <span className="text-sm text-[var(--color-text-primary)]">Statut</span>
-                      </div>
-                      <span className="text-sm font-medium text-green-700 dark:text-green-400">{student.status}</span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm text-[var(--color-text-primary)]">Email</span>
-                      </div>
-                      <span className="text-sm text-[var(--color-text-secondary)]">{student.user.email}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex gap-2">
-                    <Link to="/parent/grades" className="btn-accent flex-1 text-center">
-                      Voir les notes
-                    </Link>
-                    <Link to="/parent/schedule" className="btn-secondary flex-1 text-center">
-                      Emploi du temps
-                    </Link>
-                  </div>
+        <div className="space-y-6 py-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+              <div className="oak-stat-card" style={{ background: 'linear-gradient(145deg, #cedfb4 0%, #aac240 100%)' }}>
+                <div>
+                  <div className="text-sm text-[#2f3615]">Enfants liés</div>
+                  <div className="text-3xl font-extrabold text-[#171b11]">{linkedStudents.length}</div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Recent Activity */}
-      <div
-        ref={activityRef}
-        className={`card p-6 ${activityVisible ? 'animate-slide-in-up' : 'opacity-0'}`}
-      >
-        <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-6">
-          Activité Récente
-        </h2>
-        <div className="space-y-4">
-          {recentActivity.map((activity, index) => {
-            const Icon = activity.icon;
-            return (
-              <div key={index} className="flex items-center gap-4 p-3 bg-[var(--color-bg-secondary)] rounded-lg">
-                <Icon className={`w-5 h-5 ${activity.color}`} />
-                <div className="flex-1">
-                  <p className="text-sm text-[var(--color-text-primary)]">{activity.text}</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">{activity.time}</p>
-                </div>
+                <Users className="w-5 h-5 text-[#2a3313]" />
               </div>
-            );
-          })}
-          {recentActivity.length === 0 && (
-            <div className="text-sm text-[var(--color-text-secondary)]">
-              Aucune activite recente.
+              <div className="oak-stat-card" style={{ background: 'linear-gradient(145deg, #f4f8b8 0%, #e7ef96 100%)' }}>
+                <div>
+                  <div className="text-sm text-[#2f3615]">Moyenne globale</div>
+                  <div className="text-3xl font-extrabold text-[#171b11]">
+                    {linkedStudents.length ? (linkedStudents.reduce((acc, s) => acc + (s.gpa || 0), 0) / linkedStudents.length).toFixed(2) : '-'}
+                  </div>
+                </div>
+                <Award className="w-5 h-5 text-[#2a3313]" />
+              </div>
+              <div className="oak-stat-card" style={{ background: 'linear-gradient(145deg, #d8e2ce 0%, #bccdb6 100%)' }}>
+                <div>
+                  <div className="text-sm text-[#2f3615]">Compte parent</div>
+                  <div className="text-2xl font-extrabold text-[#171b11]">Actif</div>
+                </div>
+                <CheckCircle className="w-5 h-5 text-[#2a3313]" />
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+
+            <div className="oak-hero-banner w-full lg:w-[38%]">
+              <img src="/campus-hero.png" alt="Campus" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+              <div className="absolute bottom-4 left-4 right-4 text-white">
+                <div className="text-sm/5 opacity-90">Bonjour {user?.firstName}</div>
+                <div className="text-xl font-bold">Espace Parent FORUM-EXCELLENCE</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Actions rapides</h3>
+              <ArrowUpRight className="w-4 h-4 text-[var(--color-text-muted)]" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              {quickActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <Link key={action.name} to={action.href} className="oak-event-item hover:bg-[var(--color-surface-offset)]">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Icon className="w-4 h-4" />
+                      <span>{action.name}</span>
+                    </div>
+                    <ArrowUpRight className="w-4 h-4 text-[var(--color-text-muted)]" />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">Mes Enfants</h2>
+
+            {loadingStudents ? (
+              <div className="card p-8 text-center">
+                <p className="text-[var(--color-text-secondary)]">Chargement des élèves...</p>
+              </div>
+            ) : linkedStudents.length === 0 ? (
+              <div className="card p-8 text-center">
+                <Users className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-muted)]" />
+                <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Aucun enfant associé pour le moment</h3>
+                <p className="text-[var(--color-text-secondary)]">
+                  Veuillez contacter l'administration pour lier votre compte à celui de votre enfant.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {linkedStudents.map((student) => {
+                  const courseName = student.enrollments?.[0]?.course?.program?.name || 'Non inscrit';
+
+                  return (
+                    <div key={student.id} className="card p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-xl font-semibold text-[var(--color-text-primary)]">
+                            {student.user.firstName} {student.user.lastName}
+                          </h3>
+                          <p className="text-sm text-[var(--color-text-secondary)]">{courseName}</p>
+                        </div>
+                        <div className="w-12 h-12 rounded-full bg-[var(--color-primary-subtle)] flex items-center justify-center">
+                          <Users className="w-6 h-6 text-[var(--color-primary)]" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mb-4">
+                        <div className="oak-event-item">
+                          <div className="flex items-center gap-2">
+                            <Award className="w-4 h-4 text-[var(--color-primary)]" />
+                            <span className="text-sm">Moyenne</span>
+                          </div>
+                          <span className="font-semibold">{student.gpa || '0.00'}</span>
+                        </div>
+                        <div className="oak-event-item">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                            <span className="text-sm">Statut</span>
+                          </div>
+                          <span className="text-sm font-medium">{student.status}</span>
+                        </div>
+                        <div className="oak-event-item">
+                          <div className="flex items-center gap-2">
+                            <BookOpen className="w-4 h-4 text-[var(--color-text-muted)]" />
+                            <span className="text-sm">Email</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-[var(--color-text-muted)]">{student.user.email}</span>
+                            <MoreHorizontal className="w-4 h-4 text-[var(--color-text-muted)]" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex gap-2">
+                        <Link to="/parent/grades" className="btn-accent flex-1 text-center">
+                          Voir les notes
+                        </Link>
+                        <Link to="/parent/schedule" className="btn-secondary flex-1 text-center">
+                          Emploi du temps
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="oak-dark-card p-5">
+            <h2 className="text-xl font-semibold mb-4">Activité Récente</h2>
+            {recentActivity.length === 0 ? (
+              <div className="text-sm text-white/70">Aucune activite recente.</div>
+            ) : (
+              <div className="space-y-2">
+                {recentActivity.map((activity, index) => {
+                  const Icon = activity.icon;
+                  return (
+                    <div key={index} className="flex items-center gap-3 p-2 rounded-lg bg-white/10">
+                      <Icon className={`w-4 h-4 ${activity.color}`} />
+                      <div className="flex-1">
+                        <p className="text-sm">{activity.text}</p>
+                        <p className="text-xs text-white/70">{activity.time}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

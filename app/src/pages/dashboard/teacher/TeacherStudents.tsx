@@ -287,7 +287,7 @@ const TeacherStudents: React.FC = () => {
                 <div className="card p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">
-                      D�tails de l'�l�ve
+                      Détails de l'élève
                     </h3>
                     <button 
                       onClick={() => setSelectedStudent(null)}
@@ -324,7 +324,7 @@ const TeacherStudents: React.FC = () => {
                       <p className="text-2xl font-bold text-[var(--color-text-primary)]">
                         {selectedStudent.attendance == null ? '—' : `${selectedStudent.attendance}%`}
                       </p>
-                      <p className="text-sm text-[var(--color-text-secondary)]">Pr�sence</p>
+                      <p className="text-sm text-[var(--color-text-secondary)]">Présence</p>
                     </div>
                   </div>
 
@@ -349,7 +349,7 @@ const TeacherStudents: React.FC = () => {
 
                   {/* Academic Info */}
                   <div className="space-y-3 mb-6">
-                    <h4 className="font-medium text-[var(--color-text-primary)]">Acad�mique</h4>
+                    <h4 className="font-medium text-[var(--color-text-primary)]">Académique</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-[var(--color-text-secondary)]">Classe:</span>
@@ -360,7 +360,7 @@ const TeacherStudents: React.FC = () => {
                         <span className="text-[var(--color-text-primary)]">{selectedStudent.level}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-[var(--color-text-secondary)]">Derni�re note:</span>
+                        <span className="text-[var(--color-text-secondary)]">Dernière note:</span>
                         <span className="text-[var(--color-text-primary)]">{selectedStudent.lastGrade}</span>
                       </div>
                     </div>
@@ -394,10 +394,10 @@ const TeacherStudents: React.FC = () => {
                     <Users className="w-8 h-8 text-[var(--color-text-muted)]" />
                   </div>
                   <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">
-                    S�lectionnez un �l�ve
+                    Sélectionnez un élève
                   </h3>
                   <p className="text-[var(--color-text-secondary)]">
-                    Cliquez sur un �l�ve pour voir les d�tails
+                    Cliquez sur un élève pour voir les détails
                   </p>
                 </div>
               )}
@@ -434,14 +434,14 @@ const TeacherStudents: React.FC = () => {
                       <p className="font-semibold text-[var(--color-text-primary)]">{selectedStudent.average}/20</p>
                     </div>
                     <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg">
-                      <p className="text-sm text-[var(--color-text-muted)]">Pr�sence</p>
+                      <p className="text-sm text-[var(--color-text-muted)]">Présence</p>
                       <p className="font-semibold text-[var(--color-text-primary)]">
                         {selectedStudent.attendance == null ? '—' : `${selectedStudent.attendance}%`}
                       </p>
                     </div>
                   </div>
                   <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg">
-                    <p className="text-sm text-[var(--color-text-muted)] mb-2">Derni�re Note</p>
+                    <p className="text-sm text-[var(--color-text-muted)] mb-2">Dernière note</p>
                     <p className="font-semibold text-[var(--color-text-primary)]">{selectedStudent.lastGrade}</p>
                   </div>
                   <button 
@@ -460,7 +460,7 @@ const TeacherStudents: React.FC = () => {
               <div className="card p-6 w-full max-w-md mx-4">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold text-[var(--color-text-primary)]">
-                    {contactType === 'student' ? "Contacter l'�l�ve" : 'Contacter le parent'}
+                    {contactType === 'student' ? "Contacter l'élève" : 'Contacter le parent'}
                   </h2>
                   <button 
                     onClick={() => setShowContactModal(false)}
@@ -477,7 +477,7 @@ const TeacherStudents: React.FC = () => {
                     </p>
                   </div>
                   <textarea 
-                    placeholder="�crivez votre message..."
+                    placeholder="Écrivez votre message..."
                     className="input-field w-full h-32"
                   />
                   <div className="flex gap-3">

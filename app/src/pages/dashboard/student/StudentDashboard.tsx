@@ -2,17 +2,19 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { api } from '../../../lib/api';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 import { 
   Award,
   Calendar,
-  MessageSquare,
-  FileText,
+  ArrowUpRight,
   TrendingUp,
   Clock,
   BookOpen,
-  CheckCircle
+  CheckCircle,
+  Users,
+  GraduationCap,
+  MoreHorizontal,
 } from 'lucide-react';
 
 type GradeItem = {
@@ -31,6 +33,7 @@ type EventItem = {
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const refreshTick = useLiveRefresh(15000);
   const [stats, setStats] = useState([
     { label: 'Moyenne Générale', value: '-', icon: Award, color: 'bg-blue-500' },
     { label: 'Absences', value: '-', icon: Clock, color: 'bg-amber-500' },
@@ -42,12 +45,6 @@ const StudentDashboard: React.FC = () => {
   const [progress, setProgress] = useState({ semester: '-', attendance: '-', mention: '-' });
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const { ref: headerRef, isVisible: headerVisible } = useScrollReveal();
-  const { ref: actionsRef, isVisible: actionsVisible } = useScrollReveal();
-  const { ref: statsRef, isVisible: statsVisible } = useScrollReveal();
-  const { ref: gradesRef, isVisible: gradesVisible } = useScrollReveal();
-  const { ref: eventsRef, isVisible: eventsVisible } = useScrollReveal();
-  const { ref: progressRef, isVisible: progressVisible } = useScrollReveal();
 
   useEffect(() => {
     const scrollTargets: { [key: string]: string } = {
@@ -93,54 +90,46 @@ const StudentDashboard: React.FC = () => {
         let currentGPA: number | null = null;
         let assignmentsCount = 0;
 
-        if (gradesRes.ok) {
-          const gradesResult = await gradesRes.json();
-          overallPercentage = typeof gradesResult?.data?.overallPercentage === 'number'
-            ? gradesResult.data.overallPercentage
-            : null;
-          currentGPA = typeof gradesResult?.data?.currentGPA === 'number'
-            ? gradesResult.data.currentGPA
-            : null;
+        const gradesResult = gradesRes.data;
+        overallPercentage = typeof gradesResult?.data?.overallPercentage === 'number'
+          ? gradesResult.data.overallPercentage
+          : null;
+        currentGPA = typeof gradesResult?.data?.currentGPA === 'number'
+          ? gradesResult.data.currentGPA
+          : null;
 
-          const courses = Array.isArray(gradesResult?.data?.courses) ? gradesResult.data.courses : [];
-          const allAssignments = courses.flatMap((course: any) => {
-            const assignments = Array.isArray(course.assignments) ? course.assignments : [];
-            return assignments.map((assignment: any) => {
-              const pointsEarned = assignment.pointsEarned?.toString?.() ?? assignment.pointsEarned;
-              const pointsPossible = assignment.pointsPossible?.toString?.() ?? assignment.pointsPossible;
-              return {
-                course: course.courseName || 'Cours',
-                grade: pointsEarned && pointsPossible ? `${pointsEarned}/${pointsPossible}` : '-',
-                date: assignment.gradeDate || assignment.createdAt || '',
-                type: assignment.assignmentType || 'Devoir'
-              } as GradeItem;
-            });
+        const courses = Array.isArray(gradesResult?.data?.courses) ? gradesResult.data.courses : [];
+        const allAssignments = courses.flatMap((course: any) => {
+          const assignments = Array.isArray(course.assignments) ? course.assignments : [];
+          return assignments.map((assignment: any) => {
+            const pointsEarned = assignment.pointsEarned?.toString?.() ?? assignment.pointsEarned;
+            const pointsPossible = assignment.pointsPossible?.toString?.() ?? assignment.pointsPossible;
+            return {
+              course: course.courseName || 'Cours',
+              grade: pointsEarned && pointsPossible ? `${pointsEarned}/${pointsPossible}` : '-',
+              date: assignment.gradeDate || assignment.createdAt || '',
+              type: assignment.assignmentType || 'Devoir'
+            } as GradeItem;
           });
+        });
 
-          allAssignments.sort((a: GradeItem, b: GradeItem) => b.date.localeCompare(a.date));
-          assignmentsCount = allAssignments.length;
-          setRecentGrades(allAssignments.slice(0, 4));
-        } else {
-          setRecentGrades([]);
-        }
+        allAssignments.sort((a: GradeItem, b: GradeItem) => b.date.localeCompare(a.date));
+        assignmentsCount = allAssignments.length;
+        setRecentGrades(allAssignments.slice(0, 4));
 
-        if (scheduleRes.ok) {
-          const scheduleResult = await scheduleRes.json();
-          const weeklySchedule = scheduleResult?.data?.weeklySchedule || {};
-          const events = Object.entries(weeklySchedule).flatMap(([dayName, schedules]) => {
-            if (!Array.isArray(schedules)) return [];
-            return schedules.map((schedule: any) => ({
-              title: schedule.courseName || 'Cours',
-              date: dayName,
-              time: schedule.startTime || ''
-            }));
-          });
-          setUpcomingEvents(events.slice(0, 3));
-          const semesterLabel = scheduleResult?.data?.semester || '-';
-          setProgress((prev) => ({ ...prev, semester: semesterLabel }));
-        } else {
-          setUpcomingEvents([]);
-        }
+        const scheduleResult = scheduleRes.data;
+        const weeklySchedule = scheduleResult?.data?.weeklySchedule || {};
+        const events = Object.entries(weeklySchedule).flatMap(([dayName, schedules]) => {
+          if (!Array.isArray(schedules)) return [];
+          return schedules.map((schedule: any) => ({
+            title: schedule.courseName || 'Cours',
+            date: dayName,
+            time: schedule.startTime || ''
+          }));
+        });
+        setUpcomingEvents(events.slice(0, 3));
+        const semesterLabel = scheduleResult?.data?.semester || '-';
+        setProgress((prev) => ({ ...prev, semester: semesterLabel }));
 
         const averageValue = overallPercentage !== null
           ? `${overallPercentage}%`
@@ -181,196 +170,170 @@ const StudentDashboard: React.FC = () => {
     };
 
     fetchDashboardData();
-  }, [user?.student?.id]);
+  }, [user?.student?.id, refreshTick]);
 
   const quickActions = [
-    { name: 'Mes Notes', href: '/student/grades', icon: Award, color: 'text-blue-600' },
-    { name: 'Mon Emploi du Temps', href: '/student/schedule', icon: Calendar, color: 'text-green-600' },
-    { name: 'Mes Leçons', href: '/student/lessons', icon: BookOpen, color: 'text-purple-600' },
-    { name: 'Mes Matières', href: '/student/subjects', icon: TrendingUp, color: 'text-orange-600' },
-    { name: 'Mes Rendez-vous', href: '/student/appointments', icon: MessageSquare, color: 'text-indigo-600' },
-    { name: 'Bulletins', href: '/student/report-cards', icon: FileText, color: 'text-red-600' }
+    { name: 'Mes Notes', href: '/student/grades', icon: Award },
+    { name: 'Mon Emploi du Temps', href: '/student/schedule', icon: Calendar },
+    { name: 'Mes Leçons', href: '/student/lessons', icon: BookOpen },
+    { name: 'Mes Matières', href: '/student/subjects', icon: TrendingUp },
   ];
+
+  const growthValue = 62;
+  const successValue = 52;
 
   return (
     <div className="section">
       <div className="section-content">
-        <div className="space-y-8">
-      {/* Welcome Header */}
-      <div
-        ref={headerRef}
-        className={`gradient-card rounded-2xl p-8 text-white ${headerVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
-      >
-        <h1 className="text-3xl font-bold mb-2">
-          Bonjour {user?.firstName} ! <span className="wave">👋</span>
-        </h1>
-        <p className="text-white/80 text-lg">
-          Bienvenue dans ton espace élève au Forum de L'excellence
-        </p>
-      </div>
-
-      {/* Quick Actions */}
-      <div ref={actionsRef} className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 ${actionsVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
-        {quickActions.map((action, index) => {
-          const Icon = action.icon;
-          const { ref, isVisible } = useScrollReveal();
-          const delayClass = ['', 'animation-delay-100', 'animation-delay-200', 'animation-delay-300', 'animation-delay-400', 'animation-delay-500'][index] || '';
-          let state = undefined;
-          let cardId = undefined;
-          if (action.href === '/student/grades') state = { scrollTo: 'student-grades' };
-          else if (action.href === '/student/schedule') state = { scrollTo: 'student-schedule' };
-          else if (action.href === '/student/lessons') state = { scrollTo: 'student-lessons' };
-          else if (action.href === '/student/subjects') state = { scrollTo: 'student-subjects' };
-          else if (action.href === '/student/appointments') state = { scrollTo: 'student-appointments' };
-          else if (action.href === '/student/report-cards') state = { scrollTo: 'student-report-cards' };
-          if (action.href === '/student/grades') cardId = 'student-card-grades';
-          else if (action.href === '/student/schedule') cardId = 'student-card-schedule';
-          else if (action.href === '/student/lessons') cardId = 'student-card-lessons';
-          else if (action.href === '/student/subjects') cardId = 'student-card-subjects';
-          else if (action.href === '/student/appointments') cardId = 'student-card-appointments';
-          else if (action.href === '/student/report-cards') cardId = 'student-card-report-cards';
-          return (
-            <div key={index} ref={ref} className={`${isVisible ? 'animate-fade-in-up' : 'opacity-0'} ${delayClass}`}>
-              <Link
-                to={action.href}
-                state={state}
-                id={cardId}
-                className="card p-6 text-center group hover:shadow-lg transition-all duration-300 h-full flex flex-col items-center justify-center"
-              >
-                <Icon className={`w-8 h-8 mx-auto mb-3 ${action.color} group-hover:scale-110 transition-transform`} />
-                <h3 className="text-sm font-semibold text-[var(--color-text-primary)] whitespace-normal">{action.name}</h3>
-              </Link>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Stats Grid */}
-      <div ref={statsRef} className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 ${statsVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
-        {stats.map((stat, index) => {
-          const Icon = stat.icon;
-          const { ref, isVisible } = useScrollReveal();
-          const delayClass = ['', 'animation-delay-100', 'animation-delay-200', 'animation-delay-300'][index] || '';
-          return (
-            <div key={index} ref={ref} className={`card p-6 ${isVisible ? 'animate-fade-in-up' : 'opacity-0'} ${delayClass}`}>
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-lg ${stat.color} flex items-center justify-center`}>
-                  <Icon className="w-6 h-6 text-white" />
-                </div>
-                <TrendingUp className="w-5 h-5 text-green-500" />
-              </div>
-              <div className="text-2xl font-bold text-[var(--color-text-primary)] mb-1">
-                {stat.value}
-              </div>
-              <div className="text-sm text-[var(--color-text-secondary)]">
-                {stat.label}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {loadingData && (
-        <div className="text-sm text-[var(--color-text-secondary)]">Chargement du tableau de bord...</div>
-      )}
-      {loadError && (
-        <div className="text-sm text-red-600">{loadError}</div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Grades */}
-        <div
-          ref={gradesRef}
-          className={`card p-6 ${gradesVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-[var(--color-text-primary)]">
-              Dernières Notes
-            </h2>
-            <Link to="/student/grades" state={{ scrollTo: 'student-grades' }} className="text-sm text-[var(--color-primary-navy)] hover:underline">
-              Voir tout
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {recentGrades.map((grade, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-[var(--color-bg-secondary)] rounded-lg">
+        <div className="space-y-6 py-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+              <div className="oak-stat-card" style={{ background: 'linear-gradient(145deg, #cedfb4 0%, #aac240 100%)' }}>
                 <div>
-                  <h4 className="font-medium text-[var(--color-text-primary)]">{grade.course}</h4>
-                  <p className="text-sm text-[var(--color-text-muted)]">{grade.type} - {grade.date}</p>
+                  <div className="text-sm text-[#2f3615]">Moyenne Générale</div>
+                  <div className="text-3xl font-extrabold text-[#171b11]">{stats[0]?.value}</div>
                 </div>
-                <span className="text-lg font-bold text-[var(--color-primary-navy)]">{grade.grade}</span>
+                <Award className="w-5 h-5 text-[#2a3313]" />
               </div>
-            ))}
-            {recentGrades.length === 0 && (
-              <div className="text-sm text-[var(--color-text-secondary)]">
-                Aucune note recente.
+              <div className="oak-stat-card" style={{ background: 'linear-gradient(145deg, #f4f8b8 0%, #e7ef96 100%)' }}>
+                <div>
+                  <div className="text-sm text-[#2f3615]">Devoirs</div>
+                  <div className="text-3xl font-extrabold text-[#171b11]">{stats[2]?.value}</div>
+                </div>
+                <GraduationCap className="w-5 h-5 text-[#2a3313]" />
               </div>
-            )}
-          </div>
-        </div>
+              <div className="oak-stat-card" style={{ background: 'linear-gradient(145deg, #d8e2ce 0%, #bccdb6 100%)' }}>
+                <div>
+                  <div className="text-sm text-[#2f3615]">Assiduité</div>
+                  <div className="text-3xl font-extrabold text-[#171b11]">{progress.attendance}</div>
+                </div>
+                <Users className="w-5 h-5 text-[#2a3313]" />
+              </div>
+            </div>
 
-        {/* Upcoming Events */}
-        <div
-          ref={eventsRef}
-          className={`card p-6 ${eventsVisible ? 'animate-slide-in-right' : 'opacity-0'}`}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-[var(--color-text-primary)]">
-              Prochaines Échéances
-            </h2>
-            <Link to="/student/schedule" state={{ scrollTo: 'student-schedule' }} className="text-sm text-[var(--color-primary-navy)] hover:underline">
-              Voir l'emploi du temps
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {upcomingEvents.map((event, index) => (
-              <div key={index} className="flex items-start gap-3 p-3 bg-[var(--color-bg-secondary)] rounded-lg">
-                <div className="w-10 h-10 rounded-lg bg-[var(--color-primary-gold-light)] flex items-center justify-center flex-shrink-0">
-                  <Calendar className="w-5 h-5 text-[var(--color-primary-navy)]" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-[var(--color-text-primary)]">{event.title}</h4>
-                  <p className="text-sm text-[var(--color-text-muted)]">
-                    {event.date} à {event.time}
-                  </p>
-                </div>
+            <div className="oak-hero-banner w-full lg:w-[38%]">
+              <img src="/campus-hero.png" alt="Campus" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+              <div className="absolute bottom-4 left-4 right-4 text-white">
+                <div className="text-sm/5 opacity-90">Bonjour {user?.firstName}</div>
+                <div className="text-xl font-bold">Ton espace FORUM-EXCELLENCE</div>
               </div>
-            ))}
-            {upcomingEvents.length === 0 && (
-              <div className="text-sm text-[var(--color-text-secondary)]">
-                Aucun evenement planifie.
-              </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Academic Progress */}
-      <div
-        ref={progressRef}
-        className={`card p-6 ${progressVisible ? 'animate-fade-in-up' : 'opacity-0'}`}
-      >
-        <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-6">
-          Progression Académique
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className={`text-center p-6 bg-[var(--color-bg-secondary)] rounded-lg ${progressVisible ? 'animation-delay-100 animate-fade-in-up' : 'opacity-0'}`}>
-            <div className="text-3xl font-bold text-[var(--color-primary-navy)] mb-2">{progress.semester}</div>
-            <p className="text-sm text-[var(--color-text-secondary)]">Semestre</p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">En cours</p>
+          {(loadingData || loadError) && (
+            <div className="card p-4 text-sm text-[var(--color-text-secondary)]">
+              {loadingData ? 'Chargement du tableau de bord...' : loadError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="card xl:col-span-3 p-5">
+              <div className="text-sm text-[var(--color-text-muted)] mb-3">Academy growth</div>
+              <div className="oak-growth-ring relative">
+                <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+                  <circle cx="60" cy="60" r="46" fill="none" stroke="#e3ead5" strokeWidth="12" />
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="46"
+                    fill="none"
+                    stroke="var(--color-primary)"
+                    strokeWidth="12"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(2 * Math.PI * 46 * growthValue) / 100} ${2 * Math.PI * 46}`}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-3xl font-bold">{growthValue}%</div>
+              </div>
+            </div>
+
+            <div className="card xl:col-span-5 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Dernières Notes</h3>
+                <Link to="/student/grades" state={{ scrollTo: 'student-grades' }} className="text-sm text-[var(--color-primary)]">
+                  Voir tout
+                </Link>
+              </div>
+              <div className="space-y-2">
+                {recentGrades.map((grade) => (
+                  <div key={`${grade.course}-${grade.date}`} className="oak-event-item">
+                    <div>
+                      <div className="text-sm font-medium">{grade.course}</div>
+                      <div className="text-xs text-[var(--color-text-muted)]">{grade.type}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold">{grade.grade}</span>
+                      <MoreHorizontal className="w-4 h-4 text-[var(--color-text-muted)]" />
+                    </div>
+                  </div>
+                ))}
+                {recentGrades.length === 0 && <div className="text-sm text-[var(--color-text-secondary)]">Aucune note recente.</div>}
+              </div>
+            </div>
+
+            <div className="card xl:col-span-4 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Prochaines Échéances</h3>
+                <Calendar className="w-4 h-4 text-[var(--color-text-muted)]" />
+              </div>
+              <div className="space-y-2">
+                {upcomingEvents.map((event) => (
+                  <div key={`${event.title}-${event.date}`} className="oak-event-item">
+                    <div>
+                      <div className="text-sm font-medium">{event.title}</div>
+                      <div className="text-xs text-[var(--color-text-muted)]">{event.date}</div>
+                    </div>
+                    <span className="text-xs text-[var(--color-text-muted)]">{event.time}</span>
+                  </div>
+                ))}
+                {upcomingEvents.length === 0 && <div className="text-sm text-[var(--color-text-secondary)]">Aucun evenement planifie.</div>}
+              </div>
+            </div>
           </div>
-          <div className={`text-center p-6 bg-[var(--color-bg-secondary)] rounded-lg ${progressVisible ? 'animation-delay-200 animate-fade-in-up' : 'opacity-0'}`}>
-            <div className="text-3xl font-bold text-green-600 mb-2">{progress.attendance}</div>
-            <p className="text-sm text-[var(--color-text-secondary)]">Assiduité</p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">Excellente</p>
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="card xl:col-span-4 p-5 bg-[linear-gradient(145deg,#fff7dc_0%,#ffe2ad_100%)]">
+              <div className="text-sm text-[#69511b]">Progression</div>
+              <div className="text-4xl font-extrabold text-[#2c250f] my-1">{progress.semester}</div>
+              <p className="text-sm text-[#6a5a32]">Semestre en cours</p>
+            </div>
+
+            <div className="oak-dark-card xl:col-span-4 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Actions rapides</h3>
+                <ArrowUpRight className="w-4 h-4" />
+              </div>
+              <div className="space-y-2">
+                {quickActions.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <Link key={action.name} to={action.href} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/10">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Icon className="w-4 h-4" />
+                        <span>{action.name}</span>
+                      </div>
+                      <ArrowUpRight className="w-4 h-4" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="card xl:col-span-4 p-5">
+              <h3 className="text-lg font-semibold mb-4">Success Rate</h3>
+              <div className="w-full max-w-[220px] mx-auto">
+                <svg viewBox="0 0 220 120" className="w-full h-auto">
+                  <path d="M20 110 A90 90 0 0 1 200 110" stroke="#efe4bf" strokeWidth="18" fill="none" strokeLinecap="round" />
+                  <path d="M20 110 A90 90 0 0 1 200 110" stroke="#e1bf6c" strokeWidth="18" fill="none" strokeLinecap="round" strokeDasharray={`${successValue * 2.83} 283`} />
+                </svg>
+              </div>
+              <div className="text-center -mt-3">
+                <div className="text-4xl font-extrabold tracking-tight">{successValue}%</div>
+                <div className="text-sm text-[var(--color-text-muted)] mt-1">Mention {progress.mention}</div>
+              </div>
+            </div>
           </div>
-          <div className={`text-center p-6 bg-[var(--color-bg-secondary)] rounded-lg ${progressVisible ? 'animation-delay-300 animate-fade-in-up' : 'opacity-0'}`}>
-            <div className="text-3xl font-bold text-[var(--color-success)] mb-2">{progress.mention}</div>
-            <p className="text-sm text-[var(--color-text-secondary)]">Mention</p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">Très Bien</p>
-          </div>
-        </div>
-      </div>
         </div>
       </div>
     </div>

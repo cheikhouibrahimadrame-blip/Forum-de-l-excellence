@@ -13,30 +13,41 @@
    ============================================================ */
 
 :root {
+  /* FORUM-EXCELLENCE core palette */
+  --oak-olive:        #aac240;
+  --oak-sage:         #bccdb6;
+  --oak-chartreuse:   #eff3a2;
+  --oak-peach:        #ffe2ad;
+  --oak-dark:         #1e1e1e;
+  --oak-bg:           #f2f5ee;
+  --oak-surface:      #ffffff;
+  --oak-text:         #1a1a1a;
+  --oak-text-muted:   #7a7a7a;
+
   /* Surfaces */
-  --color-bg:              #f5f4f0;
-  --color-surface:         #fafaf8;
-  --color-surface-2:       #ffffff;
-  --color-surface-offset:  #eeede8;
-  --color-divider:         #e2e0da;
-  --color-border:          #d8d6cf;
+  --color-bg:              var(--oak-bg);
+  --color-surface:         #f8faF4;
+  --color-surface-2:       var(--oak-surface);
+  --color-surface-offset:  #edf2e5;
+  --color-divider:         #dde5d2;
+  --color-border:          #e3eadb;
 
   /* Text */
-  --color-text:            #1a1916;
-  --color-text-muted:      #6b6860;
-  --color-text-faint:      #b0afa9;
-  --color-text-inverse:    #f9f8f4;
+  --color-text:            var(--oak-text);
+  --color-text-muted:      var(--oak-text-muted);
+  --color-text-faint:      #a0a992;
+  --color-text-inverse:    #f8faf4;
 
-  /* Brand — Navy profond */
-  --color-primary:         #1e3a5f;
-  --color-primary-hover:   #152c4a;
-  --color-primary-active:  #0e1f34;
-  --color-primary-subtle:  #e8edf4;
+  /* Brand */
+  --color-primary:         var(--oak-olive);
+  --color-primary-hover:   #98b231;
+  --color-primary-active:  #839b29;
+  --color-primary-subtle:  #eef4de;
 
-  /* Accent Gold — discret, pour indicateurs actifs */
-  --color-gold:            #b8960c;
-  --color-gold-light:      #f0e8c8;
-  --color-gold-sidebar:    #e8c84a;
+  /* Accent */
+  --color-gold:            #ddb957;
+  --color-gold-light:      #fff1cc;
+  --color-gold-sidebar:    var(--oak-olive);
 
   /* Rôles utilisateurs */
   --color-student:         #2563eb;
@@ -97,7 +108,7 @@
 
   /* Sidebar */
   --sidebar-width: 256px;
-  --sidebar-bg:    #1a3356;
+  --sidebar-bg:    #ffffff;
 
   /* Legacy compat */
   --color-bg-primary:        var(--color-surface-2);
@@ -105,7 +116,7 @@
   --color-bg-card:           var(--color-surface-2);
   --color-text-primary:      var(--color-text);
   --color-text-secondary:    var(--color-text-muted);
-  --color-primary-navy:      var(--color-primary);
+  --color-primary-navy:      #8aa02f;
   --color-primary-navy-dark: var(--color-primary-active);
   --color-primary-gold:      #b8960c;
   --color-primary-gold-light: var(--color-gold-light);
@@ -116,26 +127,26 @@
 /* ── DARK MODE ─────────────────────────────────────────────── */
 .dark,
 [data-theme="dark"] {
-  --color-bg:             #111214;
-  --color-surface:        #17191c;
-  --color-surface-2:      #1d1f23;
-  --color-surface-offset: #1a1c1f;
-  --color-divider:        #25272b;
-  --color-border:         #2e3035;
+  --color-bg:             #131611;
+  --color-surface:        #1a1f18;
+  --color-surface-2:      #1f251d;
+  --color-surface-offset: #252d22;
+  --color-divider:        #303a2b;
+  --color-border:         #3a4534;
 
-  --color-text:           #e8e6e1;
-  --color-text-muted:     #7a7975;
-  --color-text-faint:     #4a4946;
-  --color-text-inverse:   #1a1916;
+  --color-text:           #e8eedf;
+  --color-text-muted:     #a6b199;
+  --color-text-faint:     #6f7a64;
+  --color-text-inverse:   #1a1a1a;
 
-  --color-primary:        #4d85c0;
-  --color-primary-hover:  #3a6fa4;
-  --color-primary-active: #2d5a8a;
-  --color-primary-subtle: #1e2d3d;
+  --color-primary:        #b4cc58;
+  --color-primary-hover:  #c7dc72;
+  --color-primary-active: #98b040;
+  --color-primary-subtle: #313d24;
 
-  --color-gold:            #e8c84a;
-  --color-gold-light:      #2a2416;
-  --color-gold-sidebar:    #e8c84a;
+  --color-gold:            #e0bf6e;
+  --color-gold-light:      #3a2f1d;
+  --color-gold-sidebar:    #b4cc58;
 
   --color-student-bg:  #172035;
   --color-parent-bg:   #0f2018;
@@ -147,7 +158,7 @@
   --shadow-lg:  0 12px 32px oklch(0 0 0 / 0.45);
   --shadow-xl:  0 20px 48px oklch(0 0 0 / 0.55);
 
-  --sidebar-bg: #131619;
+  --sidebar-bg: #1d2319;
 
   --color-bg-primary:     var(--color-surface-2);
   --color-bg-secondary:   var(--color-bg);
@@ -270,7 +281,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-5) var(--space-5);
-    border-bottom: 1px solid oklch(1 0 0 / 0.08);
+    border-bottom: 1px solid var(--color-divider);
   }
 
   .sidebar-logo-img {
@@ -285,14 +296,14 @@
     font-family: 'Cabinet Grotesk', sans-serif;
     font-weight: 800;
     font-size: var(--text-sm);
-    color: #ffffff;
+    color: var(--color-text);
     line-height: 1.2;
     letter-spacing: -0.01em;
   }
 
   .sidebar-logo-sub {
     font-size: var(--text-xs);
-    color: oklch(1 0 0 / 0.45);
+    color: var(--color-text-muted);
     margin-top: 1px;
   }
 
@@ -301,7 +312,7 @@
     font-weight: 600;
     letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: oklch(1 0 0 / 0.3);
+    color: var(--color-text-muted);
     padding: var(--space-4) var(--space-5) var(--space-2);
   }
 
@@ -314,7 +325,7 @@
     font-size: var(--text-sm);
     font-weight: 500;
     border-radius: var(--radius-lg);
-    color: oklch(1 0 0 / 0.55);
+    color: var(--color-text-muted);
     text-decoration: none;
     transition:
       color var(--transition-fast),
@@ -322,27 +333,15 @@
   }
 
   .sidebar-nav-item:hover {
-    color: #ffffff;
-    background: oklch(1 0 0 / 0.08);
+    color: var(--color-text);
+    background: var(--color-surface-offset);
   }
 
   .sidebar-nav-item.active {
-    color: #ffffff;
-    background: oklch(1 0 0 / 0.12);
+    color: var(--color-text);
+    background: color-mix(in oklch, var(--oak-chartreuse) 70%, white);
     font-weight: 600;
-    position: relative;
-  }
-
-  .sidebar-nav-item.active::before {
-    content: '';
-    position: absolute;
-    left: calc(-1 * var(--space-3));
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3px;
-    height: 60%;
-    background: var(--color-gold-sidebar);
-    border-radius: 0 var(--radius-full) var(--radius-full) 0;
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--oak-olive) 30%, transparent);
   }
 
   .sidebar-nav-item svg {
@@ -358,7 +357,7 @@
 
   .sidebar-user {
     padding: var(--space-4) var(--space-5);
-    border-top: 1px solid oklch(1 0 0 / 0.08);
+    border-top: 1px solid var(--color-divider);
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -367,13 +366,13 @@
   .sidebar-user-name {
     font-size: var(--text-sm);
     font-weight: 600;
-    color: #ffffff;
+    color: var(--color-text);
     line-height: 1.3;
   }
 
   .sidebar-user-role {
     font-size: var(--text-xs);
-    color: oklch(1 0 0 / 0.45);
+    color: var(--color-text-muted);
   }
 
   /* === TOPBAR === */
@@ -421,8 +420,9 @@
   /* === CARDS === */
   .card {
     background: var(--color-surface-2);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    border: 1px solid transparent;
+    box-shadow: var(--shadow-sm);
     transition:
       box-shadow var(--transition-interactive),
       border-color var(--transition-interactive);
@@ -430,7 +430,7 @@
 
   .card:hover {
     box-shadow: var(--shadow-md);
-    border-color: var(--color-divider);
+    border-color: transparent;
   }
 
   .card-elevated {
@@ -447,8 +447,8 @@
 
   .kpi-card {
     background: var(--color-surface-2);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    border: 1px solid transparent;
     padding: var(--space-5) var(--space-6);
     display: flex;
     flex-direction: column;
@@ -497,7 +497,7 @@
     padding: var(--space-2) var(--space-6);
     font-size: var(--text-sm);
     font-weight: 600;
-    color: #ffffff;
+    color: #1a1a1a;
     background: var(--color-primary);
     border-radius: var(--radius-lg);
     border: none;
@@ -528,9 +528,9 @@
     padding: calc(var(--space-2) - 1px) var(--space-6);
     font-size: var(--text-sm);
     font-weight: 600;
-    color: var(--color-primary);
-    background: transparent;
-    border: 1.5px solid var(--color-primary);
+    color: #704f21;
+    background: var(--oak-peach);
+    border: 1.5px solid color-mix(in oklch, var(--oak-peach) 50%, #c58a3b);
     border-radius: var(--radius-lg);
     cursor: pointer;
     transition:
@@ -539,7 +539,7 @@
   }
 
   .btn-secondary:hover {
-    background: var(--color-primary-subtle);
+    background: color-mix(in oklch, var(--oak-peach) 82%, white);
   }
 
   .btn-ghost {
@@ -744,11 +744,99 @@
   }
 
   .gradient-hero {
-    background: linear-gradient(135deg, var(--color-primary) 0%, #3a6fa4 100%);
+    background: linear-gradient(145deg, #dbe8ce 0%, #bfd0a7 48%, #eaf3d6 100%);
   }
 
   .gradient-card {
-    background: linear-gradient(135deg, var(--color-primary) 0%, #3a6fa4 100%);
+    background: linear-gradient(145deg, #c9dba8 0%, #aac240 62%, #dfeab8 100%);
+  }
+
+  /* === FORUM-EXCELLENCE DASHBOARD COMPONENTS === */
+  .oak-stat-card {
+    border-radius: 22px;
+    padding: 1rem 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 108px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .oak-hero-banner {
+    position: relative;
+    border-radius: 22px;
+    overflow: hidden;
+    min-height: 230px;
+    background: #d6e1c8;
+    box-shadow: var(--shadow-md);
+  }
+
+  .oak-growth-ring {
+    width: 132px;
+    height: 132px;
+    display: grid;
+    place-items: center;
+    margin-inline: auto;
+  }
+
+  .oak-dark-card {
+    border-radius: 22px;
+    background: var(--oak-dark);
+    color: #f6f6f6;
+    box-shadow: var(--shadow-md);
+  }
+
+  .oak-event-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 0.9rem;
+    border-radius: 14px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-divider);
+  }
+
+  .oak-bar-chart {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.55rem;
+    align-items: end;
+    height: 160px;
+  }
+
+  .oak-bar {
+    background: linear-gradient(180deg, #ffe2ad 0%, #e8c265 100%);
+    border-radius: 10px 10px 6px 6px;
+    min-height: 22px;
+  }
+
+  .oak-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-divider);
+    background: var(--color-surface);
+    padding: 0.35rem 0.75rem;
+    min-width: 220px;
+  }
+
+  .oak-search input {
+    border: none;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    font-size: 0.9rem;
+    color: var(--color-text);
+  }
+
+  .oak-dot-decoration {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--oak-olive);
+    opacity: 0.7;
   }
 
   .section { width: 100%; }
@@ -878,4 +966,169 @@
   .dark .text-gray-400 { color: #b8bfc8; }
   .dark .text-gray-600 { color: #8a9198; }
   .dark .text-gray-300 { color: #c8d0d8; }
+}
+
+/* ============================================================
+   DARK MODE SAFETY NET
+   Catches ALL hardcoded Tailwind color classes that pages use
+   and forces them to respect our CSS variable dark mode system.
+   This fixes white-on-white text bugs across 25+ dashboard pages.
+   ============================================================ */
+
+/* ── Backgrounds ─────────────────────────────────────────── */
+.dark .bg-white {
+  background-color: var(--color-surface-2) !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: var(--color-surface) !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: var(--color-surface-offset) !important;
+}
+
+.dark .bg-gray-200 {
+  background-color: var(--color-surface-offset) !important;
+}
+
+/* ── Text Colors ─────────────────────────────────────────── */
+.dark .text-gray-900 {
+  color: var(--color-text) !important;
+}
+
+.dark .text-gray-800 {
+  color: var(--color-text) !important;
+}
+
+.dark .text-gray-700 {
+  color: var(--color-text-muted) !important;
+}
+
+/* ── Border Colors ───────────────────────────────────────── */
+.dark .border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+.dark .border-gray-300 {
+  border-color: var(--color-border) !important;
+}
+
+.dark .border-gray-100 {
+  border-color: var(--color-divider) !important;
+}
+
+/* ── Semantic Colors (dark mode) ─────────────────────────── */
+.dark .bg-red-50 {
+  background-color: var(--color-error-bg) !important;
+}
+
+.dark .border-red-200 {
+  border-color: color-mix(in oklch, var(--color-error) 30%, transparent) !important;
+}
+
+.dark .text-red-700 {
+  color: var(--color-error) !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: var(--color-info-bg) !important;
+}
+
+.dark .bg-green-50 {
+  background-color: var(--color-success-bg) !important;
+}
+
+.dark .bg-amber-50,
+.dark .bg-yellow-50 {
+  background-color: var(--color-warning-bg) !important;
+}
+
+/* ── Hover States (dark mode) ────────────────────────────── */
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover {
+  background-color: var(--color-surface-offset) !important;
+}
+
+.dark .hover\:bg-blue-50:hover {
+  background-color: var(--color-info-bg) !important;
+}
+
+.dark .hover\:bg-red-50:hover {
+  background-color: var(--color-error-bg) !important;
+}
+
+.dark .hover\:bg-green-50:hover {
+  background-color: var(--color-success-bg) !important;
+}
+
+/* ── Ring / Focus States (dark mode) ─────────────────────── */
+.dark .ring-offset-2 {
+  --tw-ring-offset-color: var(--color-bg);
+}
+
+.dark .focus\:ring-blue-500:focus {
+  --tw-ring-color: var(--color-info);
+}
+
+/* ============================================================
+   MISSING UTILITY CLASSES
+   Pages reference these Tailwind-style classes but they are
+   NOT defined in tailwind.config.js. Define them here.
+   ============================================================ */
+
+/* ── bg-primary-navy ─────────────────────────────────────── */
+.bg-primary-navy {
+  background-color: var(--color-primary);
+}
+
+.hover\:bg-primary-navy:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.hover\:bg-primary-navy\/90:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.text-primary-navy {
+  color: var(--color-primary);
+}
+
+/* ── Gradient utilities ──────────────────────────────────── */
+.from-primary-navy {
+  --tw-gradient-from: var(--color-primary) var(--tw-gradient-from-position);
+  --tw-gradient-to: transparent var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.dark .from-primary-gold {
+  --tw-gradient-from: var(--color-gold) var(--tw-gradient-from-position);
+  --tw-gradient-to: transparent var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+/* ── Focus rings ─────────────────────────────────────────── */
+.focus\:ring-primary-navy:focus {
+  --tw-ring-color: var(--color-primary);
+}
+
+.dark .focus\:ring-primary-gold:focus {
+  --tw-ring-color: var(--color-gold);
+}
+
+/* ── Tab active state fix ────────────────────────────────── */
+.bg-primary-navy.text-white {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+/* ── Date input dark mode fix ────────────────────────────── */
+.dark input[type="date"],
+.dark input[type="time"],
+.dark input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+.dark select {
+  color-scheme: dark;
 }

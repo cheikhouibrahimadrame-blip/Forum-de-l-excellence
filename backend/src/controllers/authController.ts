@@ -10,11 +10,30 @@ import { emitSecurityAlert } from '../utils/securityAlerts';
 import { getCurrentSecrets, verifyTokenWithFallback } from '../utils/secretManager';
 import logger from '../utils/logger';
 
-const ACCESS_TOKEN_TTL = process.env.JWT_EXPIRES_IN || '15m';
+const ACCESS_TOKEN_TTL = process.env.JWT_EXPIRES_IN || '60m';
 const REFRESH_TOKEN_TTL = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 const REFRESH_COOKIE_NAME = 'refreshToken';
 const DEVICE_COOKIE_NAME = 'deviceId';
 const DEVICE_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+
+const parseTtlToMs = (ttl: string, fallbackMs: number) => {
+  const match = String(ttl || '').trim().match(/^(\d+)([smhd])$/i);
+  if (!match) return fallbackMs;
+  const value = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  if (!Number.isFinite(value) || value <= 0) return fallbackMs;
+
+  const multipliers: Record<string, number> = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000
+  };
+
+  return value * (multipliers[unit] || 1);
+};
+
+const REFRESH_TOKEN_MAX_AGE_MS = parseTtlToMs(REFRESH_TOKEN_TTL, 7 * 24 * 60 * 60 * 1000);
 
 export const loginValidation = [
   body('email').isEmail().normalizeEmail().withMessage('Email invalide'),
@@ -115,7 +134,7 @@ const setRefreshCookie = (res: Response, token: string) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: REFRESH_TOKEN_MAX_AGE_MS,
     path: '/' // Allow cookie to be sent to all routes
   });
 };
@@ -132,7 +151,7 @@ const generateTokens = async (user: any, req: Request, res: Response, sessionId?
       userId: user.id,
       sessionId: activeSessionId,
       tokenHash: refreshHash,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      expiresAt: new Date(Date.now() + REFRESH_TOKEN_MAX_AGE_MS)
     }
   });
 
@@ -539,24 +558,26 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
       }
     });
 
-    if (!storedToken || storedToken.expiresAt < new Date()) {
-      await prisma.refreshToken.deleteMany({ where: { userId: decoded.userId } });
-      await prisma.userSession.updateMany({
-        where: { userId: decoded.userId, revokedAt: null },
-        data: { revokedAt: new Date() }
-      });
-      await prisma.user.update({
-        where: { id: decoded.userId },
-        data: { tokenVersion: { increment: 1 } }
-      } as any);
+    if (!storedToken) {
+      // Can happen with concurrent refresh requests (multi-tab race) after token rotation.
+      // Do not revoke all sessions here; return a clean 401 and let client re-auth if needed.
       emitSecurityAlert({
-        event: 'REFRESH_REUSE_DETECTED',
-        severity: 'high',
+        event: 'REFRESH_TOKEN_NOT_FOUND',
+        severity: 'medium',
         details: { userId: decoded.userId, sessionId }
       });
       res.status(401).json({
         success: false,
-        error: 'Token de rafraîchissement invalide ou expiré'
+        error: 'Token de rafraîchissement invalide ou déjà utilisé'
+      });
+      return;
+    }
+
+    if (storedToken.expiresAt < new Date()) {
+      await prisma.refreshToken.delete({ where: { id: storedToken.id } });
+      res.status(401).json({
+        success: false,
+        error: 'Token de rafraîchissement expiré'
       });
       return;
     }
@@ -585,7 +606,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
         userId: user.id,
         sessionId,
         tokenHash: newRefreshHash,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_MAX_AGE_MS)
       }
     });
 

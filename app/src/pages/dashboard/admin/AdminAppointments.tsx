@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BellRing, ChevronLeft, Calendar, MessageSquare, X } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { getReadableApiError } from '../../../lib/errorUtils';
 
 interface AppointmentUser {
   id?: string;
@@ -60,7 +61,8 @@ const AdminAppointments: React.FC = () => {
         setTeachers(userItems.filter((user: TeacherItem) => user.role === 'TEACHER'));
       } catch (err: any) {
         console.error('Error fetching appointments:', err);
-        setError(err?.response?.data?.error || 'Erreur lors du chargement des rendez-vous.');
+        const message = getReadableApiError(err, 'Erreur lors du chargement des rendez-vous.');
+        if (message) setError(message);
       } finally {
         setLoading(false);
       }

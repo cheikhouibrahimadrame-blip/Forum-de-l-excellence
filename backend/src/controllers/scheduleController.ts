@@ -3,6 +3,67 @@ import prisma from '../lib/prisma';
 import { AuthenticatedRequest } from '../middleware/auth';
 import logger from '../utils/logger';
 
+type ScheduleRequestStatus = 'PENDING_APPROVAL' | 'REJECTED' | 'PUBLISHED';
+
+type PendingScheduleRequest = {
+  id: string;
+  courseId: string;
+  teacherId: string;
+  classroom: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  semester: string;
+  year: number;
+  status: ScheduleRequestStatus;
+  createdByUserId: string;
+  createdAt: Date;
+  reviewedAt?: Date;
+  reviewedByUserId?: string;
+  rejectionReason?: string;
+  publishedScheduleId?: string;
+};
+
+const pendingScheduleRequests: PendingScheduleRequest[] = [];
+
+const overlaps = (startA: string, endA: string, startB: string, endB: string) => {
+  return startA < endB && startB < endA;
+};
+
+const checkScheduleConflicts = async (input: {
+  teacherId: string;
+  classroom: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}) => {
+  const conflicts = await prisma.schedule.findMany({
+    where: {
+      isActive: true,
+      dayOfWeek: input.dayOfWeek,
+      OR: [
+        { teacherId: input.teacherId },
+        { classroom: input.classroom }
+      ]
+    },
+    select: {
+      id: true,
+      teacherId: true,
+      classroom: true,
+      startTime: true,
+      endTime: true,
+      course: {
+        select: {
+          code: true,
+          name: true
+        }
+      }
+    }
+  });
+
+  const conflict = conflicts.find((item) => overlaps(item.startTime, item.endTime, input.startTime, input.endTime));
+  return conflict || null;
+};
 
 export const getStudentSchedule = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
   try {
@@ -230,6 +291,79 @@ export const createSchedule = async (req: AuthenticatedRequest, res: Response): 
       }
     }
 
+    if (req.user!.role === 'TEACHER') {
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: { id: true, code: true, name: true, teacherId: true }
+      });
+
+      if (!course) {
+        return res.status(404).json({ success: false, error: 'Cours non trouvé' });
+      }
+
+      if (course.teacherId !== teacherId) {
+        return res.status(403).json({ success: false, error: 'Accès refusé pour ce cours' });
+      }
+
+      const requestId = `schedreq_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const requestItem: PendingScheduleRequest = {
+        id: requestId,
+        courseId,
+        teacherId,
+        classroom,
+        dayOfWeek: Number(dayOfWeek),
+        startTime,
+        endTime,
+        semester,
+        year: Number(year),
+        status: 'PENDING_APPROVAL',
+        createdByUserId: req.user!.id,
+        createdAt: new Date()
+      };
+
+      pendingScheduleRequests.unshift(requestItem);
+
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN', isActive: true },
+        select: { id: true }
+      });
+
+      if (admins.length > 0) {
+        await prisma.message.createMany({
+          data: admins.map((admin) => ({
+            senderId: req.user!.id,
+            receiverId: admin.id,
+            subject: 'Nouvelle demande d\'emploi du temps',
+            content: `Demande en attente: ${course.code} ${course.name} (${startTime}-${endTime}, salle ${classroom}).`
+          }))
+        });
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: 'Demande envoyée pour approbation admin',
+        data: {
+          requestId,
+          status: 'PENDING_APPROVAL'
+        }
+      });
+    }
+
+    const conflict = await checkScheduleConflicts({
+      teacherId,
+      classroom,
+      dayOfWeek: Number(dayOfWeek),
+      startTime,
+      endTime
+    });
+
+    if (conflict) {
+      return res.status(409).json({
+        success: false,
+        error: `Conflit d'horaire avec ${conflict.course.code} (${conflict.startTime}-${conflict.endTime})`
+      });
+    }
+
     const schedule = await prisma.schedule.create({
       data: {
         courseId,
@@ -240,20 +374,10 @@ export const createSchedule = async (req: AuthenticatedRequest, res: Response): 
         endTime,
         semester,
         year
-      },
-      include: {
-        course: true,
-        teacher: {
-          include: {
-            user: {
-              select: { firstName: true, lastName: true }
-            }
-          }
-        }
       }
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Horaire créé avec succès',
       data: schedule
@@ -397,5 +521,192 @@ export const deleteSchedule = async (req: AuthenticatedRequest, res: Response): 
       success: false,
       error: 'Erreur serveur'
     });
+  }
+};
+
+export const listScheduleRequests = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+  try {
+    const role = req.user?.role;
+    const userId = req.user?.id;
+
+    if (!role || !userId) {
+      return res.status(401).json({ success: false, error: 'Non authentifié' });
+    }
+
+    if (role === 'ADMIN') {
+      return res.json({ success: true, data: pendingScheduleRequests });
+    }
+
+    if (role === 'TEACHER') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId } });
+      if (!teacher) {
+        return res.status(404).json({ success: false, error: 'Profil enseignant introuvable' });
+      }
+
+      const own = pendingScheduleRequests.filter((item) => item.teacherId === teacher.id);
+      return res.json({ success: true, data: own });
+    }
+
+    return res.status(403).json({ success: false, error: 'Accès refusé' });
+  } catch (error) {
+    logger.error({ error }, 'List schedule requests error:');
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+export const reviewScheduleRequest = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+  try {
+    const { requestId } = req.params;
+    const { action, reason } = req.body as { action?: 'APPROVE' | 'REJECT'; reason?: string };
+
+    if (!action || !['APPROVE', 'REJECT'].includes(action)) {
+      return res.status(400).json({ success: false, error: 'Action invalide' });
+    }
+
+    const requestItem = pendingScheduleRequests.find((item) => item.id === requestId);
+    if (!requestItem) {
+      return res.status(404).json({ success: false, error: 'Demande introuvable' });
+    }
+
+    if (requestItem.status !== 'PENDING_APPROVAL') {
+      return res.status(400).json({ success: false, error: 'Demande déjà traitée' });
+    }
+
+    const course = await prisma.course.findUnique({
+      where: { id: requestItem.courseId },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        enrollments: {
+          select: {
+            student: {
+              select: {
+                id: true,
+                userId: true,
+                user: {
+                  select: { firstName: true, lastName: true }
+                },
+                parentStudents: {
+                  include: {
+                    parent: {
+                      select: { userId: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!course) {
+      return res.status(404).json({ success: false, error: 'Cours introuvable' });
+    }
+
+    const teacherUser = await prisma.teacher.findUnique({
+      where: { id: requestItem.teacherId },
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true }
+        }
+      }
+    });
+
+    if (!teacherUser?.user?.id) {
+      return res.status(404).json({ success: false, error: 'Enseignant introuvable' });
+    }
+
+    if (action === 'REJECT') {
+      if (!reason || !String(reason).trim()) {
+        return res.status(400).json({ success: false, error: 'Le motif de refus est requis' });
+      }
+
+      requestItem.status = 'REJECTED';
+      requestItem.rejectionReason = reason.trim();
+      requestItem.reviewedAt = new Date();
+      requestItem.reviewedByUserId = req.user!.id;
+
+      await prisma.message.create({
+        data: {
+          senderId: req.user!.id,
+          receiverId: teacherUser.user.id,
+          subject: 'Demande d\'emploi du temps refusée',
+          content: `Votre demande pour ${course.code} ${course.name} a été refusée. Motif: ${reason.trim()}`
+        }
+      });
+
+      return res.json({ success: true, message: 'Demande refusée', data: requestItem });
+    }
+
+    const conflict = await checkScheduleConflicts({
+      teacherId: requestItem.teacherId,
+      classroom: requestItem.classroom,
+      dayOfWeek: requestItem.dayOfWeek,
+      startTime: requestItem.startTime,
+      endTime: requestItem.endTime
+    });
+
+    if (conflict) {
+      return res.status(409).json({
+        success: false,
+        error: `Conflit d'horaire avec ${conflict.course.code} (${conflict.startTime}-${conflict.endTime})`
+      });
+    }
+
+    const schedule = await prisma.schedule.create({
+      data: {
+        courseId: requestItem.courseId,
+        teacherId: requestItem.teacherId,
+        classroom: requestItem.classroom,
+        dayOfWeek: requestItem.dayOfWeek,
+        startTime: requestItem.startTime,
+        endTime: requestItem.endTime,
+        semester: requestItem.semester,
+        year: requestItem.year,
+        isActive: true
+      }
+    });
+
+    requestItem.status = 'PUBLISHED';
+    requestItem.reviewedAt = new Date();
+    requestItem.reviewedByUserId = req.user!.id;
+    requestItem.publishedScheduleId = schedule.id;
+
+    await prisma.message.create({
+      data: {
+        senderId: req.user!.id,
+        receiverId: teacherUser.user.id,
+        subject: 'Demande d\'emploi du temps approuvée',
+        content: `Votre demande pour ${course.code} ${course.name} a été approuvée et publiée.`
+      }
+    });
+
+    const studentMessages = course.enrollments
+      .map((item) => item.student)
+      .filter((student) => !!student.userId)
+      .map((student) => ({
+        senderId: req.user!.id,
+        receiverId: student.userId,
+        subject: 'Mise à jour de votre emploi du temps',
+        content: `Nouveau créneau publié pour ${course.code} ${course.name}: ${requestItem.startTime}-${requestItem.endTime}, salle ${requestItem.classroom}.`
+      }));
+
+    if (studentMessages.length > 0) {
+      await prisma.message.createMany({ data: studentMessages });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Demande approuvée et emploi du temps publié',
+      data: {
+        request: requestItem,
+        scheduleId: schedule.id
+      }
+    });
+  } catch (error) {
+    logger.error({ error }, 'Review schedule request error:');
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 };

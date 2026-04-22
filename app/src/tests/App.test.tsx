@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render } from '@testing-library/react';
 
 // Mock the AuthContext so we can control auth state in tests
 vi.mock('../contexts/AuthContext', () => ({

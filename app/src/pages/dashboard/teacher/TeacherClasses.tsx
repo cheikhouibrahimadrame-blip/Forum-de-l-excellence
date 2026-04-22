@@ -1,8 +1,9 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Users, Calendar, Clock, FileText, MessageSquare, Plus, Edit, Eye, CheckCircle } from 'lucide-react';
+import { BookOpen, Users, Calendar, Clock, FileText, MessageSquare, Edit, Eye, CheckCircle, TrendingUp, Award, BarChart3 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 interface Class {
   id: string;
@@ -19,6 +20,26 @@ interface Class {
   nextSession?: string;
 }
 
+interface ClassNotesSummary {
+  average: number;
+  notesCount: number;
+  coursesCount: number;
+  studentsCount: number;
+  gradedStudentsCount: number;
+  coverage: number;
+  mastery: string;
+  remark: string;
+  trend: string;
+  lastGradeDate?: string | null;
+  topCourse?: {
+    courseId: string;
+    courseName: string;
+    courseCode: string;
+    average: number;
+    notesCount: number;
+  } | null;
+}
+
 const TeacherClasses: React.FC = () => {
   const navigate = useNavigate();
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
@@ -27,6 +48,32 @@ const TeacherClasses: React.FC = () => {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notesSummary, setNotesSummary] = useState<ClassNotesSummary | null>(null);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesError, setNotesError] = useState('');
+  const refreshTick = useLiveRefresh(15000);
+
+  const getReadableError = (err: any, fallback: string) => {
+    const status = err?.status ?? err?.response?.status;
+    const backendMessage = err?.data?.error || err?.data?.message || err?.response?.data?.error || err?.response?.data?.message;
+    const message = String(err?.message || '').toLowerCase();
+    const code = err?.code;
+    const name = err?.name;
+
+    if (name === 'AbortError' || name === 'CanceledError' || code === 'ERR_CANCELED' || message === 'canceled') {
+      return '';
+    }
+
+    if (status === 401) {
+      return 'Session expiree. Veuillez vous reconnecter.';
+    }
+
+    if (status === 403) {
+      return 'Acces refuse pour cette action.';
+    }
+
+    return backendMessage || err?.message || fallback;
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -40,9 +87,8 @@ const TeacherClasses: React.FC = () => {
         const payload = Array.isArray(data) ? data : data.data || [];
         setClasses(payload);
       } catch (err: any) {
-        if (err?.name !== 'AbortError') {
-          setError(err?.message || 'Erreur lors du chargement des classes');
-        }
+        const message = getReadableError(err, 'Erreur lors du chargement des classes');
+        if (message) setError(message);
       } finally {
         setLoading(false);
       }
@@ -51,7 +97,7 @@ const TeacherClasses: React.FC = () => {
     fetchClasses();
 
     return () => controller.abort();
-  }, []);
+  }, [refreshTick]);
 
   const selectedClassData = classes.find(c => c.id === selectedClass);
 
@@ -97,6 +143,49 @@ const TeacherClasses: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const loadNotesSummary = async () => {
+      if (!showGradesModal || !selectedClass) {
+        return;
+      }
+
+      const controller = new AbortController();
+      setNotesLoading(true);
+      setNotesError('');
+
+      try {
+        const response = await api.get(`/api/classes/${selectedClass}/notes-summary`, { signal: controller.signal });
+        const payload = response.data?.data;
+
+        setNotesSummary({
+          average: Number(payload?.average || 0),
+          notesCount: Number(payload?.notesCount || 0),
+          coursesCount: Number(payload?.coursesCount || 0),
+          studentsCount: Number(payload?.studentsCount || 0),
+          gradedStudentsCount: Number(payload?.gradedStudentsCount || 0),
+          coverage: Number(payload?.coverage || 0),
+          mastery: payload?.mastery || 'En consolidation',
+          remark: payload?.remark || '',
+          trend: payload?.trend || 'Stable',
+          lastGradeDate: payload?.lastGradeDate || null,
+          topCourse: payload?.topCourse || null
+        });
+      } catch (err: any) {
+        const message = getReadableError(err, 'Erreur lors du chargement des notes générales');
+        if (message) {
+          setNotesError(message);
+        }
+        setNotesSummary(null);
+      } finally {
+        setNotesLoading(false);
+      }
+
+      return () => controller.abort();
+    };
+
+    loadNotesSummary();
+  }, [showGradesModal, selectedClass]);
+
   return (
     <div className="section">
       <div className="section-content">
@@ -104,10 +193,6 @@ const TeacherClasses: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">Mes Classes</h1>
-        <button className="btn-primary flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          Nouvelle Classe
-        </button>
       </div>
 
       {loading && (
@@ -124,6 +209,11 @@ const TeacherClasses: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Classes List */}
         <div className="lg:col-span-2">
+          {!loading && classes.length === 0 && (
+            <div className="card p-6 text-center text-sm text-[var(--color-text-secondary)]">
+              Aucune classe principale assignee pour le moment.
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {classes.map((classItem) => (
               <div 
@@ -283,7 +373,7 @@ const TeacherClasses: React.FC = () => {
           <div className="card p-6 w-full max-w-2xl mx-4 max-h-96 overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">
-                Notes - {selectedClassData.name}
+                Notes générales - {selectedClassData.name}
               </h2>
               <button 
                 onClick={() => setShowGradesModal(false)}
@@ -292,22 +382,75 @@ const TeacherClasses: React.FC = () => {
                 ✕
               </button>
             </div>
-            <div className="space-y-4">
-              <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg">
-                <p className="text-sm text-[var(--color-text-muted)] mb-2">Matière</p>
-                <p className="font-semibold text-[var(--color-text-primary)]">{selectedClassData.subject}</p>
+            {notesLoading && (
+              <div className="text-sm text-[var(--color-text-muted)]">Chargement des notes générales...</div>
+            )}
+            {notesError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {notesError}
               </div>
-              <div className="space-y-2">
-                <h3 className="font-semibold text-[var(--color-text-primary)]">Notes récentes</h3>
+            )}
+            {!notesLoading && notesSummary && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg">
-                  <p className="text-sm text-[var(--color-text-secondary)]">Devoir 1: 18/20</p>
+                  <div className="flex items-center gap-2 mb-2 text-[var(--color-text-muted)] text-sm">
+                    <TrendingUp className="w-4 h-4" />
+                    Moyenne de classe
+                  </div>
+                  <p className="text-3xl font-bold text-[var(--color-text-primary)]">{notesSummary.average}/20</p>
                 </div>
                 <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg">
-                  <p className="text-sm text-[var(--color-text-secondary)]">Interrogation: 16/20</p>
+                  <div className="flex items-center gap-2 mb-2 text-[var(--color-text-muted)] text-sm">
+                    <BarChart3 className="w-4 h-4" />
+                    Notes enregistrées
+                  </div>
+                  <p className="text-3xl font-bold text-[var(--color-text-primary)]">{notesSummary.notesCount}</p>
                 </div>
                 <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg">
-                  <p className="text-sm text-[var(--color-text-secondary)]">Examen: 17/20</p>
+                  <div className="flex items-center gap-2 mb-2 text-[var(--color-text-muted)] text-sm">
+                    <Award className="w-4 h-4" />
+                    Maîtrise
+                  </div>
+                  <p className="text-3xl font-bold text-[var(--color-text-primary)]">{notesSummary.mastery}</p>
                 </div>
+              </div>
+
+              <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg space-y-3">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="text-sm text-[var(--color-text-muted)]">Tendance globale</p>
+                    <p className="font-semibold text-[var(--color-text-primary)]">{notesSummary.trend}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-[var(--color-text-muted)]">Cours actifs</p>
+                    <p className="font-semibold text-[var(--color-text-primary)]">{notesSummary.coursesCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-[var(--color-text-muted)]">Couverture</p>
+                    <p className="font-semibold text-[var(--color-text-primary)]">{notesSummary.coverage}%</p>
+                  </div>
+                </div>
+                <p className="text-sm text-[var(--color-text-secondary)] leading-6">{notesSummary.remark}</p>
+                <p className="text-sm text-[var(--color-text-secondary)] leading-6">
+                  Cette fenêtre présente uniquement une synthèse générale de la classe. Les notes détaillées par élève restent réservées à l’écran de gestion des notes.
+                </p>
+                {notesSummary.topCourse && (
+                  <div className="bg-white/60 dark:bg-black/10 rounded-lg p-4">
+                    <p className="text-sm text-[var(--color-text-muted)] mb-1">Cours le plus performant</p>
+                    <p className="font-semibold text-[var(--color-text-primary)]">
+                      {notesSummary.topCourse.courseName} ({notesSummary.topCourse.courseCode})
+                    </p>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      Moyenne: {notesSummary.topCourse.average}/20 · Notes: {notesSummary.topCourse.notesCount}
+                    </p>
+                  </div>
+                )}
+                {notesSummary.lastGradeDate && (
+                  <p className="text-sm text-[var(--color-text-secondary)]">
+                    Dernière note enregistrée: {new Date(notesSummary.lastGradeDate).toLocaleDateString('fr-FR')}
+                  </p>
+                )}
               </div>
               <button 
                 onClick={() => setShowGradesModal(false)}
@@ -315,6 +458,7 @@ const TeacherClasses: React.FC = () => {
                 Fermer
               </button>
             </div>
+            )}
           </div>
         </div>
       )}

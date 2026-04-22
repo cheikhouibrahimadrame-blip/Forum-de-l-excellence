@@ -1,80 +1,68 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 import {
   Users,
-  UserCheck,
-  UserX,
-  ShieldCheck,
-  MailCheck,
-  ClipboardList,
-  BookOpen,
-  CalendarClock,
-  LayoutTemplate,
-  FileSpreadsheet,
-  Settings,
-  Link as LinkIcon,
+  GraduationCap,
+  Building2,
+  ArrowUpRight,
+  MoreHorizontal,
   BellRing,
-  Lock,
-  Globe
+  Calendar,
 } from 'lucide-react';
 
-type SectionLink = {
-  label: string;
-  to: string;
-  scrollTo?: string;
-};
-
-type Section = {
+type EventItem = {
+  id: string;
   title: string;
-  icon: React.ElementType;
-  links: SectionLink[];
-  badges: string[];
+  date: string;
+  type: string;
 };
 
-type LocationState = {
-  scrollTo?: string;
+type TeacherItem = {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
 };
 
 const AdminDashboard: React.FC = () => {
-  const { user } = useAuth();
-  const location = useLocation();
-  const [academicYears, setAcademicYears] = useState<Array<{ year: string; isActive: boolean }>>([]);
-  const [userCounts, setUserCounts] = useState({ active: 0, mustChangePassword: 0, disabled: 0 });
-  const [allowedDomainsCount, setAllowedDomainsCount] = useState<number | null>(null);
-  const [classSummary, setClassSummary] = useState({ classes: 0, subjects: 0, teachers: 0, yearsClosed: 0 });
-  const [appointmentSummary, setAppointmentSummary] = useState({ pending: 0, confirmed: 0, cancelled: 0 });
-  const [statsError, setStatsError] = useState('');
-
-  useEffect(() => {
-    const scrollTargets: { [key: string]: string } = {
-      'contenu-site-public': 'admin-card-contenu-site-public',
-      'utilisateurs-acces': 'admin-card-utilisateurs-acces',
-      'classes-matieres': 'admin-card-classes-matieres',
-      'annees-academiques': 'admin-card-annees-academiques',
-      'parents-eleves': 'admin-card-parents-eleves',
-      'emplois-du-temps': 'admin-card-emplois-du-temps',
-      'notes-verrous': 'admin-card-notes-verrous',
-      'rendez-vous': 'admin-card-rendez-vous',
-      'parametres-securite': 'admin-card-parametres-securite'
+    const formatEventType = (status?: string) => {
+      if (status === 'PENDING') return 'En attente';
+      if (status === 'CONFIRMED') return 'Confirmé';
+      if (status === 'CANCELLED') return 'Annulé';
+      if (status === 'COMPLETED') return 'Terminé';
+      return status || '-';
     };
 
-    const locationState = location.state as LocationState | null;
-    const targetKey = locationState?.scrollTo;
-    if (targetKey && scrollTargets[targetKey]) {
-      const element = document.getElementById(scrollTargets[targetKey]);
-      if (element) {
-        element.scrollIntoView({ behavior: 'auto', block: 'center' });
-        element.classList.add('ring-2', 'ring-[var(--color-primary-gold)]', 'ring-offset-2');
-        setTimeout(() => {
-          element.classList.remove('ring-2', 'ring-[var(--color-primary-gold)]', 'ring-offset-2');
-        }, 2000);
-      }
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state]);
+    const formatAppointmentType = (value?: string) => {
+      if (value === 'ACADEMIC_ADVISING') return 'Conseil académique';
+      if (value === 'PARENT_CONFERENCE') return 'Réunion parent-professeur';
+      if (value === 'COUNSELING') return 'Orientation';
+      if (value === 'ADMINISTRATIVE') return 'Administratif';
+      if (value === 'TUTORING') return 'Tutorat';
+      return String(value || 'Rendez-vous').replace(/_/g, ' ');
+    };
+
+    const isInCurrentMonth = (dateValue?: string) => {
+      if (!dateValue) return false;
+      const date = new Date(dateValue);
+      const now = new Date();
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    };
+
+  const { user } = useAuth();
+  const refreshTick = useLiveRefresh(15000);
+  const [academicYears, setAcademicYears] = useState<Array<{ year: string; isActive: boolean }>>([]);
+  const [userCounts, setUserCounts] = useState({ active: 0, mustChangePassword: 0, disabled: 0 });
+  const [roleCounts, setRoleCounts] = useState({ students: 0, parents: 0, teachers: 0, admins: 0 });
+  const [classSummary, setClassSummary] = useState({ classes: 0, subjects: 0, teachers: 0, yearsClosed: 0 });
+  const [appointmentSummary, setAppointmentSummary] = useState({ pending: 0, confirmed: 0, cancelled: 0 });
+  const [recentEvents, setRecentEvents] = useState<EventItem[]>([]);
+  const [topTeachers, setTopTeachers] = useState<Array<{ name: string; role: string }>>([]);
+  const [statsError, setStatsError] = useState('');
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -84,8 +72,10 @@ const AdminDashboard: React.FC = () => {
           activeRes,
           mustChangeRes,
           disabledRes,
+          studentsRes,
+          parentsRes,
           teachersRes,
-          settingsRes,
+          adminsRes,
           yearsRes,
           classesRes,
           subjectsRes,
@@ -94,8 +84,10 @@ const AdminDashboard: React.FC = () => {
           api.get('/api/users', { params: { status: 'active', limit: 1 } }),
           api.get('/api/users', { params: { status: 'mustChangePassword', limit: 1 } }),
           api.get('/api/users', { params: { status: 'disabled', limit: 1 } }),
-          api.get('/api/users', { params: { role: 'TEACHER', limit: 1 } }),
-          api.get('/api/settings'),
+          api.get('/api/users', { params: { role: 'STUDENT', limit: 1 } }),
+          api.get('/api/users', { params: { role: 'PARENT', limit: 1 } }),
+          api.get('/api/users', { params: { role: 'TEACHER', limit: 6 } }),
+          api.get('/api/users', { params: { role: 'ADMIN', limit: 1 } }),
           api.get('/api/academic-years'),
           api.get('/api/classes'),
           api.get('/api/subjects'),
@@ -105,15 +97,28 @@ const AdminDashboard: React.FC = () => {
         const activeTotal = activeRes.data?.data?.pagination?.total ?? 0;
         const mustChangeTotal = mustChangeRes.data?.data?.pagination?.total ?? 0;
         const disabledTotal = disabledRes.data?.data?.pagination?.total ?? 0;
+        const studentsTotal = studentsRes.data?.data?.pagination?.total ?? 0;
+        const parentsTotal = parentsRes.data?.data?.pagination?.total ?? 0;
+        const adminsTotal = adminsRes.data?.data?.pagination?.total ?? 0;
 
         setUserCounts({ active: activeTotal, mustChangePassword: mustChangeTotal, disabled: disabledTotal });
 
         const teacherTotal = teachersRes.data?.data?.pagination?.total ?? 0;
-
-        const settings = settingsRes.data;
-        const email = settings?.data?.general?.email || '';
-        const domain = email.includes('@') ? email.split('@')[1] : '';
-        setAllowedDomainsCount(domain ? 1 : 0);
+        const teacherRows: TeacherItem[] = Array.isArray(teachersRes.data?.data?.users)
+          ? teachersRes.data.data.users
+          : [];
+        setTopTeachers(
+          teacherRows.slice(0, 3).map((teacher) => ({
+            name: [teacher.firstName, teacher.lastName].filter(Boolean).join(' ').trim() || teacher.email || 'Enseignant',
+            role: 'Enseignant'
+          }))
+        );
+        setRoleCounts({
+          students: studentsTotal,
+          parents: parentsTotal,
+          teachers: teacherTotal,
+          admins: adminsTotal
+        });
 
         const yearsResult = yearsRes.data;
         const years = Array.isArray(yearsResult?.data)
@@ -144,11 +149,30 @@ const AdminDashboard: React.FC = () => {
         const items = Array.isArray(appointmentsResult?.data?.appointments)
           ? appointmentsResult.data.appointments
           : [];
+
+        const monthItems = items.filter((item: any) => isInCurrentMonth(item?.scheduledDatetime));
+        const monthUpcomingItems = monthItems
+          .filter((item: any) => item?.scheduledDatetime && new Date(item.scheduledDatetime).getTime() >= Date.now())
+          .sort((a: any, b: any) => new Date(a.scheduledDatetime).getTime() - new Date(b.scheduledDatetime).getTime());
+
         setAppointmentSummary({
-          pending: items.filter((item: { status?: string }) => item.status === 'PENDING').length,
-          confirmed: items.filter((item: { status?: string }) => item.status === 'CONFIRMED').length,
-          cancelled: items.filter((item: { status?: string }) => item.status === 'CANCELLED').length
+          pending: monthItems.filter((item: { status?: string }) => item.status === 'PENDING').length,
+          confirmed: monthItems.filter((item: { status?: string }) => item.status === 'CONFIRMED').length,
+          cancelled: monthItems.filter((item: { status?: string }) => item.status === 'CANCELLED').length
         });
+
+        const mappedEvents: EventItem[] = monthUpcomingItems
+          .slice(0, 4)
+          .map((item: any) => ({
+            id: String(item.id),
+            title: formatAppointmentType(item.appointmentType),
+            date: new Date(item.scheduledDatetime).toLocaleDateString('fr-FR', {
+              day: '2-digit',
+              month: 'short'
+            }),
+            type: item.status || 'PENDING'
+          }));
+        setRecentEvents(mappedEvents);
       } catch (error) {
         console.error('Error loading admin dashboard:', error);
         setStatsError('Erreur lors du chargement des statistiques.');
@@ -156,260 +180,247 @@ const AdminDashboard: React.FC = () => {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [refreshTick]);
+
+  const totalUsers = roleCounts.students + roleCounts.parents + roleCounts.teachers + roleCounts.admins;
+  const growthValue = totalUsers > 0 ? Math.round((userCounts.active / totalUsers) * 100) : 0;
+  const totalAppointments = appointmentSummary.pending + appointmentSummary.confirmed + appointmentSummary.cancelled;
+  const successValue = totalAppointments > 0 ? Math.round((appointmentSummary.confirmed / totalAppointments) * 100) : 0;
+
+  const attendanceBars = [
+    userCounts.active,
+    classSummary.teachers,
+    classSummary.classes,
+    classSummary.subjects,
+    appointmentSummary.confirmed,
+    appointmentSummary.pending
+  ];
+  const attendanceMonths = ['Actifs', 'Ens.', 'Classes', 'Mat.', 'RDV OK', 'RDV Att.'];
+  const maxBar = Math.max(1, ...attendanceBars);
 
   const quickStats = [
-    { label: 'Comptes actifs', value: userCounts.active.toLocaleString('fr-FR'), icon: Users, tone: 'bg-blue-100 text-blue-700' },
-    { label: 'En attente (must change pw)', value: userCounts.mustChangePassword.toLocaleString('fr-FR'), icon: ShieldCheck, tone: 'bg-amber-100 text-amber-700' },
-    { label: 'Comptes désactivés', value: userCounts.disabled.toLocaleString('fr-FR'), icon: UserX, tone: 'bg-rose-100 text-rose-700' },
-    { label: 'Domaines autorisés', value: allowedDomainsCount === null ? '-' : allowedDomainsCount.toString(), icon: MailCheck, tone: 'bg-emerald-100 text-emerald-700' }
-  ];
-
-  const sections: Section[] = [
     {
-      title: 'Contenu du Site Public',
-      icon: Globe,
-      links: [
-        { label: "Éditer page d'accueil", to: '/admin/mainpage', scrollTo: 'contenu-site-public' },
-        { label: 'Éditer page Admissions', to: '/admin/content/admissions', scrollTo: 'contenu-site-public' },
-        { label: 'Éditer page Niveaux', to: '/admin/content/programs', scrollTo: 'contenu-site-public' },
-        { label: 'Éditer page Vie scolaire', to: '/admin/content/campuslife', scrollTo: 'contenu-site-public' }
-      ],
-      badges: ['Contenu public', 'En temps réel', 'Admin uniquement']
-    },
-    {
-      title: 'Utilisateurs & Accès',
+      label: 'Utilisateurs',
+      value: totalUsers.toLocaleString('fr-FR'),
       icon: Users,
-      links: [
-        { label: 'Créer un utilisateur', to: '/admin/users', scrollTo: 'utilisateurs-acces' },
-        { label: 'Activer / désactiver', to: '/admin/users', scrollTo: 'utilisateurs-acces' },
-        { label: 'Forcer mot de passe', to: '/admin/users', scrollTo: 'utilisateurs-acces' }
-      ],
-      badges: ['Admin-only creation', 'Email institutionnel', 'mustChangePassword']
+      bg: 'linear-gradient(145deg, #cedfb4 0%, #aac240 100%)',
     },
     {
-      title: 'Classes & Matières',
-      icon: ClipboardList,
-      links: [
-        { label: 'Gérer les classes (CI-CM2)', to: '/admin/classes', scrollTo: 'classes-matieres' },
-        { label: 'Gérer les matières', to: '/admin/subjects', scrollTo: 'classes-matieres' },
-        { label: 'Assigner enseignants', to: '/admin/classes', scrollTo: 'classes-matieres' }
-      ],
-      badges: ['École primaire', 'Matières dynamiques']
+      label: 'Parents',
+      value: roleCounts.parents.toLocaleString('fr-FR'),
+      icon: Users,
+      bg: 'linear-gradient(145deg, #f4f8b8 0%, #e7ef96 100%)',
     },
     {
-      title: 'Années académiques',
-      icon: CalendarClock,
-      links: [
-        { label: 'Gérer les années', to: '/admin/years', scrollTo: 'annees-academiques' },
-        { label: 'Gérer les trimestres', to: '/admin/years', scrollTo: 'annees-academiques' },
-        { label: 'Activer année/trimestre', to: '/admin/years', scrollTo: 'annees-academiques' }
-      ],
-      badges: ['Verrou par trimestre']
+      label: 'Étudiants',
+      value: roleCounts.students.toLocaleString('fr-FR'),
+      icon: GraduationCap,
+      bg: 'linear-gradient(145deg, #d8e2ce 0%, #bccdb6 100%)',
     },
     {
-      title: 'Parents & Élèves',
-      icon: LinkIcon,
-      links: [
-        { label: 'Lier parents & élèves', to: '/admin/parents-students', scrollTo: 'parents-eleves' },
-        { label: 'Voir élèves liés', to: '/admin/parents-students', scrollTo: 'parents-eleves' }
-      ],
-      badges: ['Multi-élèves par parent']
+      label: 'Personnel (Ens. + Admin)',
+      value: (roleCounts.teachers + roleCounts.admins).toLocaleString('fr-FR'),
+      icon: Building2,
+      bg: 'linear-gradient(145deg, #f4f8b8 0%, #e7ef96 100%)',
     },
-    {
-      title: 'Emplois du temps',
-      icon: LayoutTemplate,
-      links: [
-        { label: 'Publier un horaire', to: '/admin/schedules', scrollTo: 'emplois-du-temps' },
-        { label: 'Par classe', to: '/admin/schedules', scrollTo: 'emplois-du-temps' }
-      ],
-      badges: ['Version publiée']
-    },
-    {
-      title: 'Notes & Verrous',
-      icon: FileSpreadsheet,
-      links: [
-        { label: 'Suivi des saisies', to: '/admin/grade-locks', scrollTo: 'notes-verrous' },
-        { label: 'Verrouiller une période', to: '/admin/grade-locks', scrollTo: 'notes-verrous' }
-      ],
-      badges: ['Droits enseignants']
-    },
-    {
-      title: 'Rendez-vous',
-      icon: BellRing,
-      links: [
-        { label: 'Requêtes en attente', to: '/admin/appointments', scrollTo: 'rendez-vous' },
-        { label: 'Réassigner ou annuler', to: '/admin/appointments', scrollTo: 'rendez-vous' }
-      ],
-      badges: ['Contrôle admin']
-    },
-    {
-      title: 'Paramètres & Sécurité',
-      icon: Settings,
-      links: [
-        { label: 'Domaine email', to: '/admin/settings', scrollTo: 'parametres-securite' },
-        { label: 'Politique mot de passe', to: '/admin/settings', scrollTo: 'parametres-securite' },
-        { label: 'CORS / Origines', to: '/admin/settings', scrollTo: 'parametres-securite' }
-      ],
-      badges: ['Pas de signup public', 'Taux limites auth']
-    }
   ];
-
-  const activity: Array<{ who: string; what: string; detail: string; status: string }> = [];
-
-  const cardIdByTitle: Record<string, string> = {
-    'Contenu du Site Public': 'admin-card-contenu-site-public',
-    'Utilisateurs & Accès': 'admin-card-utilisateurs-acces',
-    'Classes & Matières': 'admin-card-classes-matieres',
-    'Années académiques': 'admin-card-annees-academiques',
-    'Parents & Élèves': 'admin-card-parents-eleves',
-    'Emplois du temps': 'admin-card-emplois-du-temps',
-    'Notes & Verrous': 'admin-card-notes-verrous',
-    'Rendez-vous': 'admin-card-rendez-vous',
-    'Paramètres & Sécurité': 'admin-card-parametres-securite'
-  };
 
   return (
     <div className="section">
       <div className="section-content">
-        <div className="space-y-8">
-          <div className="gradient-card rounded-2xl p-8 text-white flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-1">Console d'administration</h1>
-              <p className="text-white/80 text-lg">Gestion centralisée des accès, classes, emplois du temps et sécurité</p>
-              <p className="text-white/70 text-sm">Connecté en tant que {user?.firstName} {user?.lastName}</p>
-            </div>
-            <div className="flex flex-col md:items-end gap-3">
-              <label className="text-sm text-white/80">Année académique</label>
-              <select className="bg-white/10 border border-white/30 rounded-lg px-4 py-2 text-white">
-                {academicYears.length === 0 && (
-                  <option value="" className="text-black">Aucune année</option>
-                )}
-                {academicYears.map((year) => (
-                  <option key={year.year} value={year.year} className="text-black">{year.year}</option>
-                ))}
-              </select>
-              <Link to="/admin/users" className="inline-flex items-center gap-2 bg-white/10 text-white px-4 py-2 rounded-lg font-semibold shadow border border-white/20 hover:bg-white/20 transition-all">
-                <Users className="w-4 h-4" /> Créer un utilisateur
-              </Link>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {quickStats.map((stat, idx) => {
-              const Icon = stat.icon;
-              return (
-                <div key={idx} className="card p-4 flex items-center gap-3">
-                  <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${stat.tone}`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-[var(--color-text-secondary)]">{stat.label}</div>
-                    <div className="text-xl font-bold text-[var(--color-text-primary)]">{stat.value}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {statsError && (
-            <div className="text-sm text-red-600">{statsError}</div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {sections.map((section, idx) => {
-              const Icon = section.icon;
-              const cardId = cardIdByTitle[section.title];
-              return (
-                <div
-                  key={idx}
-                  id={cardId}
-                  className="card p-5 flex flex-col gap-4 transition-all duration-300"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-secondary)] flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-[var(--color-primary-navy)]" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">{section.title}</h3>
-                        <p className="text-sm text-[var(--color-text-muted)]">Accès réservé Administrateur</p>
-                      </div>
+        <div className="space-y-6 py-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1">
+              {quickStats.map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={stat.label} className="oak-stat-card" style={{ background: stat.bg }}>
+                    <div>
+                      <div className="text-sm text-[#2f3615]">{stat.label}</div>
+                      <div className="text-3xl font-extrabold tracking-tight text-[#171b11]">{stat.value}</div>
                     </div>
-                    <Lock className="w-4 h-4 text-[var(--color-text-muted)]" />
+                    <div className="w-10 h-10 rounded-xl bg-white/50 flex items-center justify-center">
+                      <Icon className="w-5 h-5 text-[#2a3313]" />
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {section.badges.map((badge) => (
-                      <span key={badge} className="text-xs px-2 py-1 rounded-full bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
-                        {badge}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="space-y-2">
-                    {section.links.map((link) => (
-                      <Link
-                        key={link.label}
-                        to={link.to}
-                        state={link.scrollTo ? { scrollTo: link.scrollTo } : undefined}
-                        className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]"
-                      >
-                        <span>{link.label}</span>
-                        <ShieldCheck className="w-4 h-4 text-[var(--color-primary-navy)]" />
-                      </Link>
-                    ))}
-                  </div>
+                );
+              })}
+            </div>
+
+            <div className="oak-hero-banner w-full lg:w-[38%]">
+              <img src="/campus-hero.png" alt="Campus" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                <div className="text-white">
+                  <div className="text-sm/5 opacity-90">Forum de L'excellence</div>
+                  <div className="text-xl font-bold">Tableau de bord campus</div>
                 </div>
-              );
-            })}
+                <Link to="/admin/users" className="btn-primary !px-4 !py-2 !text-sm">
+                  Ajouter un membre
+                </Link>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="card p-5">
+          {statsError && <div className="text-sm text-red-600">{statsError}</div>}
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="card xl:col-span-3 p-5">
+              <div className="text-sm text-[var(--color-text-muted)] mb-3">Croissance de l'académie</div>
+              <div className="oak-growth-ring relative">
+                <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+                  <circle cx="60" cy="60" r="46" fill="none" stroke="#e3ead5" strokeWidth="12" />
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="46"
+                    fill="none"
+                    stroke="var(--color-primary)"
+                    strokeWidth="12"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(2 * Math.PI * 46 * growthValue) / 100} ${2 * Math.PI * 46}`}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-3xl font-bold">{growthValue}%</div>
+              </div>
+              <p className="text-center text-sm text-[var(--color-text-muted)] mt-3">Performance globale de l'académie</p>
+            </div>
+
+            <div className="card xl:col-span-5 p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
-                  <UserCheck className="w-5 h-5 text-[var(--color-primary-navy)]" /> Flux comptes récents
-                </h3>
-                <Link to="/admin/users" className="text-sm text-[var(--color-primary-navy)] hover:underline">Gérer</Link>
+                <h3 className="text-lg font-semibold">Indicateurs clés</h3>
+                <span className="text-xs text-[var(--color-text-muted)]">Mois en cours</span>
+              </div>
+              <div className="oak-bar-chart">
+                {attendanceBars.map((bar, idx) => (
+                  <div key={attendanceMonths[idx]} className="flex flex-col items-center gap-2 h-full justify-end">
+                    <div className="oak-bar w-full" style={{ height: `${Math.round((bar / maxBar) * 100)}%` }} />
+                    <span className="text-xs text-[var(--color-text-muted)]">{attendanceMonths[idx]}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="badge badge-info">Classes: {classSummary.classes}</span>
+                <span className="badge badge-success">Matières: {classSummary.subjects}</span>
+                <span className="badge badge-warning">Années clôturées: {classSummary.yearsClosed}</span>
+              </div>
+            </div>
+
+            <div className="card xl:col-span-4 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Événements à venir</h3>
+                <BellRing className="w-4 h-4 text-[var(--color-text-muted)]" />
+              </div>
+              <p className="text-xs text-[var(--color-text-muted)] mb-3">Rendez-vous à venir du mois en cours</p>
+              <div className="space-y-2">
+                {(recentEvents.length > 0 ? recentEvents : [{ id: 'none', title: 'Aucun événement proche', date: '-', type: '-' }]).map((item) => (
+                  <div key={item.id} className="oak-event-item">
+                    <div>
+                      <div className="text-sm font-medium">{item.title}</div>
+                      <div className="text-xs text-[var(--color-text-muted)]">{formatEventType(item.type)}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[var(--color-text-muted)]">{item.date}</span>
+                      <MoreHorizontal className="w-4 h-4 text-[var(--color-text-muted)]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="card xl:col-span-3 p-5 bg-[linear-gradient(145deg,#fff7dc_0%,#ffe2ad_100%)]">
+              <div className="text-sm text-[#69511b]">Annonces</div>
+              <div className="text-4xl font-extrabold text-[#2c250f] my-1">{appointmentSummary.pending}</div>
+              <p className="text-sm text-[#6a5a32]">Rendez-vous en attente ce mois-ci.</p>
+              <div className="flex gap-2 mt-4">
+                {Array.from({ length: 7 }).map((_, idx) => (
+                  <div key={idx} className="oak-dot-decoration" />
+                ))}
+              </div>
+            </div>
+
+            <div className="oak-dark-card xl:col-span-5 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Enseignants principaux</h3>
+                <ArrowUpRight className="w-4 h-4" />
               </div>
               <div className="space-y-3">
-                {activity.map((row, idx) => (
-                  <div key={idx} className="p-3 rounded-lg bg-[var(--color-bg-secondary)]">
-                    <div className="flex items-center justify-between text-sm text-[var(--color-text-primary)]">
-                      <span className="font-medium">{row.what}</span>
-                      <span className="text-xs text-[var(--color-text-muted)]">{row.status}</span>
+                {(topTeachers.length > 0 ? topTeachers : [{ name: 'Aucun enseignant', role: 'N/A' }]).map((teacher, idx) => (
+                  <div key={teacher.name} className="flex items-center gap-3 py-1">
+                    <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center">
+                      <span className="text-sm font-semibold">{idx + 1}</span>
                     </div>
-                    <div className="text-xs text-[var(--color-text-secondary)]">{row.detail}</div>
+                    <div className="flex-1">
+                      <div className="font-medium">{teacher.name}</div>
+                      <div className="text-xs text-white/65">{teacher.role}</div>
+                    </div>
+                    <ArrowUpRight className="w-4 h-4 text-white/70" />
                   </div>
                 ))}
-                {activity.length === 0 && (
-                  <div className="text-sm text-[var(--color-text-secondary)]">
-                    Aucune activite recente.
-                  </div>
-                )}
               </div>
             </div>
 
-            <div className="card p-5">
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-[var(--color-primary-navy)]" /> Classes & matières (résumé)
-              </h3>
-              <ul className="space-y-2 text-sm text-[var(--color-text-primary)]">
-                <li className="flex justify-between"><span>Classes actives</span><span className="font-semibold">{classSummary.classes}</span></li>
-                <li className="flex justify-between"><span>Matières</span><span className="font-semibold">{classSummary.subjects}</span></li>
-                <li className="flex justify-between"><span>Enseignants assignés</span><span className="font-semibold">{classSummary.teachers}</span></li>
-                <li className="flex justify-between"><span>Années clôturées</span><span className="font-semibold">{classSummary.yearsClosed}</span></li>
-              </ul>
-            </div>
+            <div className="card xl:col-span-4 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Taux de réussite</h3>
+                <Calendar className="w-4 h-4 text-[var(--color-text-muted)]" />
+              </div>
 
-            <div className="card p-5">
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-                <BellRing className="w-5 h-5 text-[var(--color-primary-navy)]" /> Rendez-vous et demandes
-              </h3>
-              <ul className="space-y-2 text-sm text-[var(--color-text-primary)]">
-                <li className="flex justify-between"><span>Requêtes en attente</span><span className="font-semibold">{appointmentSummary.pending}</span></li>
-                <li className="flex justify-between"><span>Validées</span><span className="font-semibold">{appointmentSummary.confirmed}</span></li>
-                <li className="flex justify-between"><span>Annulées</span><span className="font-semibold">{appointmentSummary.cancelled}</span></li>
-              </ul>
+              <div className="w-full max-w-[220px] mx-auto">
+                <svg viewBox="0 0 220 120" className="w-full h-auto">
+                  <path d="M20 110 A90 90 0 0 1 200 110" stroke="#efe4bf" strokeWidth="18" fill="none" strokeLinecap="round" />
+                  <path
+                    d="M20 110 A90 90 0 0 1 200 110"
+                    stroke="#e1bf6c"
+                    strokeWidth="18"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={`${successValue * 2.83} 283`}
+                  />
+                </svg>
+              </div>
+
+              <div className="text-center -mt-3">
+                <div className="text-4xl font-extrabold tracking-tight">{successValue}%</div>
+                <div className="text-sm text-[var(--color-text-muted)] mt-1">Taux de réussite global</div>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-[var(--color-divider)] text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span>Rendez-vous en attente</span>
+                  <span className="font-semibold">{appointmentSummary.pending}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Confirmés</span>
+                  <span className="font-semibold">{appointmentSummary.confirmed}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Annulés</span>
+                  <span className="font-semibold">{appointmentSummary.cancelled}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">Année Académique Active</h3>
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Connecté en tant que {user?.firstName} {user?.lastName}
+                </p>
+              </div>
+              <select className="input-field max-w-[280px]">
+                {academicYears.length === 0 && <option value="">Aucune année</option>}
+                {academicYears.map((year) => (
+                  <option key={year.year} value={year.year}>
+                    {year.year}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

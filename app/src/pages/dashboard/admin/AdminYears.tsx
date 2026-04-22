@@ -191,7 +191,7 @@ const AdminYears: React.FC = () => {
       await api.post('/api/academic-years', payload);
       await fetchAcademicYears();
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erreur lors de la creation');
+      setError(err?.response?.data?.error || err?.message || 'Erreur lors de la création');
     }
   };
 
@@ -200,7 +200,7 @@ const AdminYears: React.FC = () => {
       await api.put(`/api/academic-years/${id}`, payload);
       await fetchAcademicYears();
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erreur lors de la mise a jour');
+      setError(err?.response?.data?.error || err?.message || 'Erreur lors de la mise à jour');
     }
   };
 
@@ -233,12 +233,12 @@ const AdminYears: React.FC = () => {
           Gestion des Années Scolaires
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Gérez les années scolaires et trimesters
+          Gérez les années scolaires et trimestres
         </p>
       </div>
 
       {loading && (
-        <div className="mb-6 text-sm text-gray-600 dark:text-gray-400">Chargement des annees scolaires...</div>
+        <div className="mb-6 text-sm text-gray-600 dark:text-gray-400">Chargement des années scolaires...</div>
       )}
 
       {error && (

@@ -2,16 +2,16 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { api } from '../../../lib/api';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 import { 
   BookOpen,
   Users,
   ClipboardList,
   Calendar,
-  TrendingUp,
+  ArrowUpRight,
   Clock,
-  AlertCircle
+  MoreHorizontal,
 } from 'lucide-react';
 
 type ScheduleItem = {
@@ -34,6 +34,7 @@ type ClassCard = {
 const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const refreshTick = useLiveRefresh(15000);
   const [classCards, setClassCards] = useState<ClassCard[]>([]);
   const [stats, setStats] = useState([
     { label: 'Ma Classe', value: '-', icon: BookOpen, color: 'bg-blue-500' },
@@ -43,12 +44,6 @@ const TeacherDashboard: React.FC = () => {
   ]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const { ref: headerRef, isVisible: headerVisible } = useScrollReveal();
-  const { ref: actionsRef, isVisible: actionsVisible } = useScrollReveal();
-  const { ref: statsRef, isVisible: statsVisible } = useScrollReveal();
-  const { ref: classesRef, isVisible: classesVisible } = useScrollReveal();
-  const { ref: tasksRef, isVisible: tasksVisible } = useScrollReveal();
-  const { ref: activityRef, isVisible: activityVisible } = useScrollReveal();
 
   useEffect(() => {
     const scrollTargets: { [key: string]: string } = {
@@ -165,14 +160,14 @@ const TeacherDashboard: React.FC = () => {
     };
 
     fetchDashboardData();
-  }, [user?.teacher?.id]);
+  }, [user?.teacher?.id, refreshTick]);
 
 
   const quickActions = [
-    { name: 'Mes Classes', href: '/teacher/classes', icon: BookOpen, color: 'text-blue-600' },
-    { name: 'Mes Élèves', href: '/teacher/students', icon: Users, color: 'text-green-600' },
-    { name: 'Gestion des Notes', href: '/teacher/grades', icon: ClipboardList, color: 'text-purple-600' },
-    { name: 'Mon Emploi du Temps', href: '/teacher/schedule', icon: Calendar, color: 'text-amber-600' }
+    { name: 'Mes Classes', href: '/teacher/classes', icon: BookOpen },
+    { name: 'Mes Élèves', href: '/teacher/students', icon: Users },
+    { name: 'Gestion des Notes', href: '/teacher/grades', icon: ClipboardList },
+    { name: 'Mon Emploi du Temps', href: '/teacher/schedule', icon: Calendar },
   ];
 
   const pendingTasks: Array<{ task: string; deadline: string; urgent: boolean }> = [];
@@ -180,172 +175,109 @@ const TeacherDashboard: React.FC = () => {
   return (
     <div className="section">
       <div className="section-content">
-        <div className="space-y-8">
-      {/* Welcome Header */}
-      <div
-        ref={headerRef}
-        className={`gradient-card rounded-2xl p-8 text-white ${headerVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
-      >
-        <h1 className="text-3xl font-bold mb-2">
-          Bonjour, {user?.firstName} {user?.lastName}
-        </h1>
-        <p className="text-white/80 text-lg">
-          Bienvenue dans votre espace enseignant au Forum de L'excellence
-        </p>
-      </div>
-
-      {/* Quick Actions */}
-      <div ref={actionsRef} className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 ${actionsVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
-        {quickActions.map((action, index) => {
-          const Icon = action.icon;
-          const { ref, isVisible } = useScrollReveal();
-          const delayClass = ['', 'animation-delay-100', 'animation-delay-200', 'animation-delay-300'][index] || '';
-          let state = undefined;
-          if (action.href === '/teacher/classes') state = { scrollTo: 'teacher-classes' };
-          else if (action.href === '/teacher/students') state = { scrollTo: 'teacher-students' };
-          else if (action.href === '/teacher/grades') state = { scrollTo: 'teacher-grades' };
-          else if (action.href === '/teacher/schedule') state = { scrollTo: 'teacher-schedule' };
-          let cardId = undefined;
-          if (action.href === '/teacher/classes') cardId = 'teacher-card-classes';
-          else if (action.href === '/teacher/students') cardId = 'teacher-card-students';
-          else if (action.href === '/teacher/grades') cardId = 'teacher-card-grades';
-          else if (action.href === '/teacher/schedule') cardId = 'teacher-card-schedule';
-          return (
-            <div key={index} ref={ref} className={`${isVisible ? 'animate-fade-in-up' : 'opacity-0'} ${delayClass}`}>
-              <Link
-                to={action.href}
-                state={state}
-                id={cardId}
-                className="card p-6 text-center group hover:shadow-lg transition-all duration-300 h-full flex flex-col items-center justify-center"
-              >
-                <Icon className={`w-8 h-8 mx-auto mb-3 ${action.color} group-hover:scale-110 transition-transform`} />
-                <h3 className="text-sm font-semibold text-[var(--color-text-primary)] whitespace-normal">{action.name}</h3>
-              </Link>
+        <div className="space-y-6 py-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+              {stats.slice(0, 3).map((stat, idx) => {
+                const gradients = [
+                  'linear-gradient(145deg, #cedfb4 0%, #aac240 100%)',
+                  'linear-gradient(145deg, #f4f8b8 0%, #e7ef96 100%)',
+                  'linear-gradient(145deg, #d8e2ce 0%, #bccdb6 100%)',
+                ];
+                return (
+                  <div key={stat.label} className="oak-stat-card" style={{ background: gradients[idx] }}>
+                    <div>
+                      <div className="text-sm text-[#2f3615]">{stat.label}</div>
+                      <div className="text-3xl font-extrabold text-[#171b11]">{stat.value}</div>
+                    </div>
+                    <stat.icon className="w-5 h-5 text-[#2a3313]" />
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
 
-      {/* Stats Grid */}
-      <div ref={statsRef} className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 ${statsVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
-        {stats.map((stat, index) => {
-          const Icon = stat.icon;
-          const { ref, isVisible } = useScrollReveal();
-          const delayClass = ['', 'animation-delay-100', 'animation-delay-200', 'animation-delay-300'][index] || '';
-          return (
-            <div key={index} ref={ref} className={`card p-6 ${isVisible ? 'animate-fade-in-up' : 'opacity-0'} ${delayClass}`}>
+            <div className="oak-hero-banner w-full lg:w-[38%]">
+              <img src="/campus-hero.png" alt="Campus" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+              <div className="absolute bottom-4 left-4 right-4 text-white">
+                <div className="text-sm/5 opacity-90">Bonjour {user?.firstName}</div>
+                <div className="text-xl font-bold">Enseignement FORUM-EXCELLENCE</div>
+              </div>
+            </div>
+          </div>
+
+          {(loadingData || loadError) && (
+            <div className="card p-4 text-sm text-[var(--color-text-secondary)]">
+              {loadingData ? 'Chargement du tableau de bord...' : loadError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="card xl:col-span-8 p-5">
               <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-lg ${stat.color} flex items-center justify-center`}>
-                  <Icon className="w-6 h-6 text-white" />
-                </div>
-                <TrendingUp className="w-5 h-5 text-green-500" />
+                <h3 className="text-lg font-semibold">Mes Classes</h3>
+                <Link to="/teacher/classes" state={{ scrollTo: 'teacher-classes' }} className="text-sm text-[var(--color-primary)]">
+                  Voir tout
+                </Link>
               </div>
-              <div className="text-2xl font-bold text-[var(--color-text-primary)] mb-1">
-                {stat.value}
-              </div>
-              <div className="text-sm text-[var(--color-text-secondary)]">
-                {stat.label}
+              <div className="space-y-2">
+                {classCards.map((classe) => (
+                  <div key={classe.id} className="oak-event-item">
+                    <div>
+                      <div className="text-sm font-medium">{classe.name}</div>
+                      <div className="text-xs text-[var(--color-text-muted)]">{classe.students ?? '-'} élèves</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-[var(--color-text-muted)]">{classe.nextClass}</span>
+                      <MoreHorizontal className="w-4 h-4 text-[var(--color-text-muted)]" />
+                    </div>
+                  </div>
+                ))}
+                {classCards.length === 0 && <div className="text-sm text-[var(--color-text-secondary)]">Aucun cours planifie.</div>}
               </div>
             </div>
-          );
-        })}
-      </div>
 
-      {loadingData && (
-        <div className="text-sm text-[var(--color-text-secondary)]">Chargement du tableau de bord...</div>
-      )}
-
-      {loadError && (
-        <div className="text-sm text-red-600">{loadError}</div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* My Classes */}
-        <div
-          ref={classesRef}
-          className={`card p-6 ${classesVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-[var(--color-text-primary)]">
-              Mes Classes
-            </h2>
-            <Link to="/teacher/classes" state={{ scrollTo: 'teacher-classes' }} className="text-sm text-[var(--color-primary-navy)] hover:underline">
-              Voir tout
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {classCards.map((classe) => (
-              <div key={classe.id} className="flex items-center justify-between p-4 bg-[var(--color-bg-secondary)] rounded-lg">
-                <div>
-                  <h4 className="font-medium text-[var(--color-text-primary)]">{classe.name}</h4>
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    {classe.students ?? '-'} élèves • Prochain cours: {classe.nextClass}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-[var(--color-primary-navy)]">{classe.avgGrade}</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">Moyenne classe</p>
-                </div>
+            <div className="card xl:col-span-4 p-5">
+              <h3 className="text-lg font-semibold mb-4">Heures / Semaine</h3>
+              <div className="text-5xl font-extrabold tracking-tight">{stats[3]?.value}</div>
+              <div className="text-sm text-[var(--color-text-muted)] mt-1">Charge horaire planifiée</div>
+              <div className="mt-4 space-y-1 text-sm">
+                <div className="flex justify-between"><span>Classes</span><span className="font-semibold">{classCards.length}</span></div>
+                <div className="flex justify-between"><span>Élèves</span><span className="font-semibold">{stats[1]?.value}</span></div>
+                <div className="flex justify-between"><span>Cahiers à corriger</span><span className="font-semibold">{stats[2]?.value}</span></div>
               </div>
-            ))}
-            {classCards.length === 0 && (
-              <div className="text-sm text-[var(--color-text-secondary)]">
-                Aucun cours planifie.
-              </div>
-            )}
+            </div>
           </div>
-        </div>
 
-        {/* Pending Tasks */}
-        <div
-          ref={tasksRef}
-          className={`card p-6 ${tasksVisible ? 'animate-slide-in-right' : 'opacity-0'}`}
-        >
-          <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-6">
-            Tâches en Attente
-          </h2>
-          <div className="space-y-3">
-            {pendingTasks.map((task, index) => (
-              <div key={index} className="flex items-center gap-3 p-3 bg-[var(--color-bg-secondary)] rounded-lg">
-                {task.urgent ? (
-                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                ) : (
-                  <Clock className="w-5 h-5 text-[var(--color-text-muted)] flex-shrink-0" />
-                )}
-                <div className="flex-1">
-                  <p className="text-sm text-[var(--color-text-primary)]">{task.task}</p>
-                  <p className={`text-xs ${task.urgent ? 'text-red-500' : 'text-[var(--color-text-muted)]'}`}>
-                    {task.deadline}
-                  </p>
-                </div>
-                <button className="text-sm text-[var(--color-primary-navy)] hover:underline">
-                  Traiter
-                </button>
-              </div>
-            ))}
-            {pendingTasks.length === 0 && (
-              <div className="text-sm text-[var(--color-text-secondary)]">
-                Aucune tache en attente.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="card xl:col-span-4 p-5 bg-[linear-gradient(145deg,#fff7dc_0%,#ffe2ad_100%)]">
+              <div className="text-sm text-[#69511b]">Agenda</div>
+              <div className="text-4xl font-extrabold text-[#2c250f] my-1">12 Days Left</div>
+              <p className="text-sm text-[#6a5a32]">Avant la remise finale des notes.</p>
+            </div>
 
-      {/* Recent Activity */}
-      <div
-        ref={activityRef}
-        className={`card p-6 ${activityVisible ? 'animate-slide-in-up' : 'opacity-0'}`}
-      >
-        <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-6">
-          Activité Récente
-        </h2>
-        <div className="space-y-4">
-          <div className="text-sm text-[var(--color-text-secondary)]">
-            Aucune activite recente.
+            <div className="oak-dark-card xl:col-span-8 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Actions rapides</h3>
+                <ArrowUpRight className="w-4 h-4" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {quickActions.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <Link key={action.name} to={action.href} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/10">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Icon className="w-4 h-4" />
+                        <span>{action.name}</span>
+                      </div>
+                      <ArrowUpRight className="w-4 h-4" />
+                    </Link>
+                  );
+                })}
+              </div>
+              {pendingTasks.length === 0 && <div className="text-sm text-white/70 mt-3">Aucune tache en attente.</div>}
+            </div>
           </div>
-        </div>
-      </div>
         </div>
       </div>
     </div>

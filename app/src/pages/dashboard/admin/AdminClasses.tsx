@@ -25,12 +25,18 @@ interface Class {
   mainTeacher?: string;
 }
 
+interface TeacherOption {
+  id: string;
+  name: string;
+}
+
 const AdminClasses: React.FC = () => {
   const navigate = useNavigate();
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [academicYears, setAcademicYears] = useState<string[]>([]);
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState('ALL');
@@ -49,6 +55,28 @@ const AdminClasses: React.FC = () => {
 
   const levels = ['CI', 'CP', 'CE1', 'CE2', 'CM1', 'CM2'];
 
+  const getReadableError = (err: any, fallback: string) => {
+    const status = err?.status ?? err?.response?.status;
+    const backendMessage = err?.data?.error || err?.data?.message || err?.response?.data?.error || err?.response?.data?.message;
+    const message = String(err?.message || '').toLowerCase();
+    const code = err?.code;
+    const name = err?.name;
+
+    if (name === 'AbortError' || name === 'CanceledError' || code === 'ERR_CANCELED' || message === 'canceled') {
+      return '';
+    }
+
+    if (status === 401) {
+      return 'Session expirée. Veuillez vous reconnecter.';
+    }
+
+    if (status === 403) {
+      return 'Accès refusé pour cette action.';
+    }
+
+    return backendMessage || err?.message || fallback;
+  };
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -56,9 +84,10 @@ const AdminClasses: React.FC = () => {
       setLoading(true);
       setError('');
       try {
-        const [classesResponse, yearsResponse] = await Promise.all([
+        const [classesResponse, yearsResponse, teachersResponse] = await Promise.all([
           api.get('/api/classes', { signal: controller.signal }),
-          api.get('/api/academic-years', { signal: controller.signal })
+          api.get('/api/academic-years', { signal: controller.signal }),
+          api.get('/api/users', { params: { role: 'TEACHER', limit: 200 }, signal: controller.signal })
         ]);
 
         const classData = classesResponse.data;
@@ -70,10 +99,20 @@ const AdminClasses: React.FC = () => {
           ? yearsData.data.map((item: { year?: string }) => item.year).filter(Boolean)
           : [];
         setAcademicYears(years);
+
+        const teacherItems = Array.isArray(teachersResponse.data?.data?.users)
+          ? teachersResponse.data.data.users
+          : [];
+        const mappedTeachers: TeacherOption[] = teacherItems
+          .map((teacher: any) => ({
+            id: String(teacher.id || ''),
+            name: [teacher.firstName, teacher.lastName].filter(Boolean).join(' ').trim() || teacher.email || ''
+          }))
+          .filter((teacher: TeacherOption) => teacher.id && teacher.name);
+        setTeachers(mappedTeachers);
       } catch (err: any) {
-        if (err?.name !== 'AbortError') {
-          setError(err?.message || 'Erreur lors du chargement des classes');
-        }
+        const message = getReadableError(err, 'Erreur lors du chargement des classes');
+        if (message) setError(message);
       } finally {
         setLoading(false);
       }
@@ -91,15 +130,25 @@ const AdminClasses: React.FC = () => {
     return matchesSearch && matchesLevel;
   });
 
+  const occupiedTeacherIds = new Set(
+    classes
+      .filter((cls) => cls.id !== editingClass?.id)
+      .map((cls) => cls.mainTeacherId)
+      .filter(Boolean) as string[]
+  );
+
+  const availableTeachers = teachers.filter((teacher) => !occupiedTeacherIds.has(teacher.id));
+
   const handleAdd = () => {
     setEditingClass(null);
+    const defaultTeacher = availableTeachers[0];
     setFormData({
       name: '',
       level: 'CI',
       capacity: 25,
       academicYear: academicYears[0] || '',
-      mainTeacherId: '',
-      mainTeacher: ''
+      mainTeacherId: defaultTeacher?.id || '',
+      mainTeacher: defaultTeacher?.name || ''
     });
     setShowModal(true);
   };
@@ -127,12 +176,14 @@ const AdminClasses: React.FC = () => {
 
       setClasses(classes.filter(c => c.id !== id));
     } catch (err: any) {
-      setError(err?.message || 'Erreur lors de la suppression de la classe');
+      const message = getReadableError(err, 'Erreur lors de la suppression de la classe');
+      if (message) setError(message);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const selectedTeacher = teachers.find((teacher) => teacher.id === formData.mainTeacherId);
 
     try {
       if (editingClass) {
@@ -142,7 +193,7 @@ const AdminClasses: React.FC = () => {
           capacity: formData.capacity,
           academicYear: formData.academicYear,
           mainTeacherId: formData.mainTeacherId,
-          mainTeacher: formData.mainTeacher
+          mainTeacher: selectedTeacher?.name || ''
         });
 
         const result = response.data;
@@ -157,7 +208,7 @@ const AdminClasses: React.FC = () => {
           capacity: formData.capacity,
           academicYear: formData.academicYear,
           mainTeacherId: formData.mainTeacherId,
-          mainTeacher: formData.mainTeacher
+          mainTeacher: selectedTeacher?.name || ''
         });
 
         const result = response.data;
@@ -169,12 +220,24 @@ const AdminClasses: React.FC = () => {
 
       setShowModal(false);
     } catch (err: any) {
-      setError(err?.message || 'Erreur lors de la sauvegarde de la classe');
+      const message = getReadableError(err, 'Erreur lors de la sauvegarde de la classe');
+      if (message) setError(message);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+
+    if (name === 'mainTeacherId') {
+      const selectedTeacher = teachers.find((teacher) => teacher.id === value);
+      setFormData((prev) => ({
+        ...prev,
+        mainTeacherId: value,
+        mainTeacher: selectedTeacher?.name || ''
+      }));
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
       [name]: name === 'capacity' ? parseInt(value) : value
@@ -482,18 +545,21 @@ const AdminClasses: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Enseignant Principal
                 </label>
-                <input
-                  type="text"
-                  name="mainTeacher"
-                  value={formData.mainTeacher}
+                <select
+                  name="mainTeacherId"
+                  value={formData.mainTeacherId}
                   onChange={handleChange}
-                  placeholder="Nom de l'enseignant"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white
                            focus:ring-2 focus:ring-primary-navy dark:focus:ring-primary-gold"
-                />
+                >
+                  <option value="">Sélectionner un enseignant</option>
+                  {availableTeachers.map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                  ))}
+                </select>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Assignation détaillée disponible dans "Gestion des Enseignants"
+                  Propose automatiquement les enseignants disponibles
                 </p>
               </div>
 

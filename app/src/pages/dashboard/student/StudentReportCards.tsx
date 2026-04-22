@@ -1,103 +1,152 @@
 import type React from 'react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FileText, Download, Printer, Calendar, Award, TrendingUp } from 'lucide-react';
 import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { downloadPDF } from '../../../utils/pdfGenerator';
+import { useAuth } from '../../../contexts/AuthContext';
+import { api } from '../../../lib/api';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
+
+type GradeRow = {
+  course: string;
+  grade: number;
+  coefficient: number;
+  teacher: string;
+};
+
+type ReportCard = {
+  id: string;
+  title: string;
+  period: string;
+  gpa: number;
+  rank: string;
+  totalStudents: string;
+  status: string;
+  attendance: string;
+  grades: GradeRow[];
+};
 
 const StudentReportCards: React.FC = () => {
+  const { user } = useAuth();
+  const refreshTick = useLiveRefresh(30000);
   const { ref: headerRef, isVisible: headerVisible } = useScrollReveal();
   const { ref: cardHeaderRef, isVisible: cardHeaderVisible } = useScrollReveal();
   const { ref: tableRef, isVisible: tableVisible } = useScrollReveal();
   const { ref: commentsRef, isVisible: commentsVisible } = useScrollReveal();
   const { ref: historyRef, isVisible: historyVisible } = useScrollReveal();
-  const [selectedTrimester, setSelectedTrimester] = useState('trimester1');
+  const [selectedTrimester, setSelectedTrimester] = useState('current');
+  const [reportCards, setReportCards] = useState<ReportCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const reportCards = [
-    {
-      id: 'trimester1',
-      title: 'Trimestre 1 - 2025-2026',
-      period: 'Octobre 2025 - D�cembre 2025',
-      gpa: 16.2,
-      rank: 3,
-      totalStudents: 28,
-      status: 'Tr�s Bien',
-      attendance: 96,
-      grades: [
-        { course: 'Math�matiques', grade: 17, coefficient: 3, teacher: 'M. Diallo' },
-        { course: 'Fran�ais', grade: 16, coefficient: 3, teacher: 'Mme Sow' },
-        { course: '�veil scientifique', grade: 15, coefficient: 2, teacher: 'M. Ndiaye' },
-        { course: 'Histoire-G�ographie', grade: 16, coefficient: 2, teacher: 'Mme Ba' },
-        { course: 'Arts plastiques', grade: 18, coefficient: 1, teacher: 'Mme Diop' },
-        { course: 'EPS', grade: 17, coefficient: 1, teacher: 'M. Fall' }
-      ]
-    },
-    {
-      id: 'trimester2',
-      title: 'Trimestre 2 - 2025-2026',
-      period: 'Janvier 2026 - Mars 2026',
-      gpa: 15.6,
-      rank: 5,
-      totalStudents: 28,
-      status: 'Bien',
-      attendance: 94,
-      grades: [
-        { course: 'Math�matiques', grade: 15.5, coefficient: 3, teacher: 'M. Diallo' },
-        { course: 'Fran�ais', grade: 15, coefficient: 3, teacher: 'Mme Sow' },
-        { course: '�veil scientifique', grade: 14.5, coefficient: 2, teacher: 'M. Ndiaye' },
-        { course: 'Histoire-G�ographie', grade: 15, coefficient: 2, teacher: 'Mme Ba' },
-        { course: 'Arts plastiques', grade: 17, coefficient: 1, teacher: 'Mme Diop' },
-        { course: 'EPS', grade: 16, coefficient: 1, teacher: 'M. Fall' }
-      ]
-    }
-  ];
+  useEffect(() => {
+    const loadReportCard = async () => {
+      if (!user?.student?.id) {
+        setLoading(false);
+        return;
+      }
 
-  const selectedReport = reportCards.find(r => r.id === selectedTrimester) || reportCards[0];
+      try {
+        setLoading(true);
+        setError('');
 
-  const calculateAverage = (grades: typeof selectedReport.grades) => {
-    const total = grades.reduce((sum, g) => sum + (g.grade * g.coefficient), 0);
-    const coefSum = grades.reduce((sum, g) => sum + g.coefficient, 0);
-    return (total / coefSum).toFixed(2);
+        const res = await api.get(`/api/grades/student/${user.student.id}`);
+        const result = res.data;
+        const courses = Array.isArray(result?.data?.courses) ? result.data.courses : [];
+        const semester = result?.data?.semester || 'Actuel';
+        const year = result?.data?.year || '';
+        const overallPercentage = typeof result?.data?.overallPercentage === 'number' ? result.data.overallPercentage : null;
+        const currentGPA = typeof result?.data?.currentGPA === 'number' ? result.data.currentGPA : null;
+
+        const grades: GradeRow[] = courses.map((course: any) => {
+          const assignments = Array.isArray(course.assignments) ? course.assignments : [];
+          let gradeValue = 0;
+
+          if (course.finalGrade != null) {
+            gradeValue = Number(course.finalGrade);
+          } else if (assignments.length > 0) {
+            const totals = assignments.reduce((acc: { earned: number; possible: number }, assignment: any) => {
+              const earned = assignment.pointsEarned != null ? Number(assignment.pointsEarned) : 0;
+              const possible = assignment.pointsPossible != null ? Number(assignment.pointsPossible) : 0;
+              return { earned: acc.earned + earned, possible: acc.possible + possible };
+            }, { earned: 0, possible: 0 });
+            gradeValue = totals.possible > 0 ? (totals.earned / totals.possible) * 20 : 0;
+          }
+
+          return {
+            course: course.courseName || 'Matière',
+            grade: Number(gradeValue.toFixed(1)),
+            coefficient: course.credits || 1,
+            teacher: course.teacher || '-'
+          };
+        });
+
+        const weightedTotal = grades.reduce((sum, row) => sum + row.grade * row.coefficient, 0);
+        const coefSum = grades.reduce((sum, row) => sum + row.coefficient, 0);
+        const bulletinAverage = coefSum > 0 ? weightedTotal / coefSum : 0;
+
+        const reportCard: ReportCard = {
+          id: 'current',
+          title: `${semester} ${year ? `- ${year}` : ''}`.trim(),
+          period: year ? `${semester} - ${year}` : semester,
+          gpa: currentGPA ?? bulletinAverage,
+          rank: '-',
+          totalStudents: '-',
+          status: overallPercentage != null
+            ? overallPercentage >= 16
+              ? 'Très Bien'
+              : overallPercentage >= 14
+                ? 'Bien'
+                : overallPercentage >= 12
+                  ? 'Assez Bien'
+                  : 'Passable'
+            : '-',
+          attendance: '-',
+          grades
+        };
+
+        setReportCards([reportCard]);
+        setSelectedTrimester('current');
+      } catch (err: any) {
+        setError(err?.response?.data?.error || err?.message || 'Erreur lors du chargement du bulletin');
+        setReportCards([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReportCard();
+  }, [user?.student?.id, refreshTick]);
+
+  const selectedReport = useMemo(() => reportCards.find((report) => report.id === selectedTrimester) || reportCards[0], [reportCards, selectedTrimester]);
+
+  const calculateAverage = (grades: GradeRow[]) => {
+    if (!grades.length) return '-';
+    const total = grades.reduce((sum, grade) => sum + (grade.grade * grade.coefficient), 0);
+    const coefSum = grades.reduce((sum, grade) => sum + grade.coefficient, 0);
+    return coefSum > 0 ? (total / coefSum).toFixed(2) : '-';
   };
 
   const handleDownload = () => {
+    if (!selectedReport) return;
+
     const simplifiedContent = `
       <div class="header">
         <div class="header-title">${selectedReport.title}</div>
         <div class="header-subtitle">${selectedReport.period}</div>
       </div>
-      
       <div class="stats-grid">
-        <div class="stat-box">
-          <div class="stat-value">${selectedReport.gpa}</div>
-          <div class="stat-label">Moyenne</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value">${selectedReport.rank}�me</div>
-          <div class="stat-label">sur ${selectedReport.totalStudents}</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value">${selectedReport.status}</div>
-          <div class="stat-label">Mention</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value">${selectedReport.attendance}%</div>
-          <div class="stat-label">Assiduit�</div>
-        </div>
+        <div class="stat-box"><div class="stat-value">${selectedReport.gpa.toFixed(2)}</div><div class="stat-label">Moyenne</div></div>
+        <div class="stat-box"><div class="stat-value">${selectedReport.rank}</div><div class="stat-label">Rang</div></div>
+        <div class="stat-box"><div class="stat-value">${selectedReport.status}</div><div class="stat-label">Mention</div></div>
+        <div class="stat-box"><div class="stat-value">${selectedReport.attendance}</div><div class="stat-label">Assiduité</div></div>
       </div>
-
       <div class="section">
-        <div class="section-title">D�tails des mati�res</div>
+        <div class="section-title">Détails des matières</div>
         <table>
-          <thead>
-            <tr>
-              <th>Mati�re</th>
-              <th>Enseignant</th>
-              <th>Note</th>
-              <th>Coef.</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Matière</th><th>Enseignant</th><th>Note</th><th>Coef.</th></tr></thead>
           <tbody>
-            ${selectedReport.grades.map(grade => `
+            ${selectedReport.grades.map((grade) => `
               <tr>
                 <td>${grade.course}</td>
                 <td>${grade.teacher}</td>
@@ -108,17 +157,14 @@ const StudentReportCards: React.FC = () => {
           </tbody>
         </table>
       </div>
-
-      <div class="footer">
-        <p>G�n�r� le ${new Date().toLocaleDateString('fr-FR')}</p>
-        <p><span class="logo">Forum de L'excellence</span> - Syst�me de Gestion Acad�mique</p>
-      </div>
+      <div class="footer"><p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p><p><span class="logo">Forum de L'excellence</span> - Système de Gestion Académique</p></div>
     `;
 
     downloadPDF(simplifiedContent, `Bulletin_${selectedReport.id}`);
   };
 
   const handlePrint = () => {
+    if (!selectedReport) return;
     const printWindow = window.open('', '', 'height=600,width=800');
     if (printWindow) {
       printWindow.document.write(`
@@ -149,38 +195,17 @@ const StudentReportCards: React.FC = () => {
             <div class="period">${selectedReport.title}</div>
             <div class="period">${selectedReport.period}</div>
           </div>
-          
           <div class="stats">
-            <div class="stat-box">
-              <div class="stat-value">${selectedReport.gpa}</div>
-              <div class="stat-label">Moyenne</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-value">${selectedReport.rank}�me</div>
-              <div class="stat-label">sur ${selectedReport.totalStudents}</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-value">${selectedReport.status}</div>
-              <div class="stat-label">Mention</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-value">${selectedReport.attendance}%</div>
-              <div class="stat-label">Assiduit�</div>
-            </div>
+            <div class="stat-box"><div class="stat-value">${selectedReport.gpa.toFixed(2)}</div><div class="stat-label">Moyenne</div></div>
+            <div class="stat-box"><div class="stat-value">${selectedReport.rank}</div><div class="stat-label">Rang</div></div>
+            <div class="stat-box"><div class="stat-value">${selectedReport.status}</div><div class="stat-label">Mention</div></div>
+            <div class="stat-box"><div class="stat-value">${selectedReport.attendance}</div><div class="stat-label">Assiduité</div></div>
           </div>
-
-          <h3>D�tails des mati�res</h3>
+          <h3>Détails des matières</h3>
           <table>
-            <thead>
-              <tr>
-                <th>Mati�re</th>
-                <th>Enseignant</th>
-                <th>Note</th>
-                <th>Coef.</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Matière</th><th>Enseignant</th><th>Note</th><th>Coef.</th></tr></thead>
             <tbody>
-              ${selectedReport.grades.map(grade => `
+              ${selectedReport.grades.map((grade) => `
                 <tr>
                   <td>${grade.course}</td>
                   <td>${grade.teacher}</td>
@@ -190,11 +215,7 @@ const StudentReportCards: React.FC = () => {
               `).join('')}
             </tbody>
           </table>
-
-          <div class="footer">
-            <p>G�n�r� le ${new Date().toLocaleDateString('fr-FR')}</p>
-            <p>Forum de L'excellence - Syst�me de Gestion Acad�mique</p>
-          </div>
+          <div class="footer"><p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p><p>Forum de L'excellence - Système de Gestion Académique</p></div>
         </body>
         </html>
       `);
@@ -207,195 +228,87 @@ const StudentReportCards: React.FC = () => {
     <div className="section">
       <div className="section-content">
         <div className="space-y-8">
-          <div
-            ref={headerRef}
-            className={`flex items-center justify-between ${headerVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
-          >
+          <div ref={headerRef} className={`flex items-center justify-between ${headerVisible ? 'animate-slide-in-left' : 'opacity-0'}`}>
             <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">Mes Bulletins</h1>
-            
-            {/* Trimester Selector */}
-            <select
-              value={selectedTrimester}
-              onChange={(e) => setSelectedTrimester(e.target.value)}
-              className="input-field appearance-none bg-no-repeat bg-right pr-10"
-              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundPosition: 'right 0.5rem center', backgroundSize: '1.5rem' }}
-            >
-              {reportCards.map(report => (
-                <option key={report.id} value={report.id}>{report.title}</option>
-              ))}
-            </select>
+            {reportCards.length > 0 && (
+              <select value={selectedTrimester} onChange={(e) => setSelectedTrimester(e.target.value)} className="input-field appearance-none bg-no-repeat bg-right pr-10">
+                {reportCards.map((report) => <option key={report.id} value={report.id}>{report.title}</option>)}
+              </select>
+            )}
           </div>
 
-          {/* Report Card Header */}
-          <div
-            ref={cardHeaderRef}
-            className={`gradient-card rounded-2xl p-8 text-white ${cardHeaderVisible ? 'animate-fade-in-up' : 'opacity-0'}`}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-2">{selectedReport.title}</h2>
-                <p className="text-white/80">{selectedReport.period}</p>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={handleDownload}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  T�l�charger
-                </button>
-                <button 
-                  onClick={handlePrint}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-                >
-                  <Printer className="w-4 h-4" />
-                  Imprimer
-                </button>
-              </div>
-            </div>
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold mb-1">{selectedReport.gpa}</div>
-                <p className="text-sm text-white/80">Moyenne</p>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold mb-1">{selectedReport.rank}�me</div>
-                <p className="text-sm text-white/80">sur {selectedReport.totalStudents}</p>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold mb-1">{selectedReport.status}</div>
-                <p className="text-sm text-white/80">Mention</p>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold mb-1">{selectedReport.attendance}%</div>
-                <p className="text-sm text-white/80">Assiduit�</p>
-              </div>
-            </div>
-          </div>
+          {loading && <div className="card p-6 text-center text-[var(--color-text-secondary)]">Chargement du bulletin...</div>}
 
-          {/* Detailed Grades Table */}
-          <div
-            ref={tableRef}
-            className={`card overflow-hidden ${tableVisible ? 'animate-slide-in-right' : 'opacity-0'}`}
-          >
-            <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
-                <Award className="w-5 h-5 text-[var(--color-primary-navy)]" />
-                D�tails des mati�res
-              </h3>
-              <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
-                <TrendingUp className="w-4 h-4" />
-                Moyenne: {calculateAverage(selectedReport.grades)}/20
+          {selectedReport && !loading && (
+            <>
+              <div ref={cardHeaderRef} className={`gradient-card rounded-2xl p-8 text-white ${cardHeaderVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2">{selectedReport.title}</h2>
+                    <p className="text-white/80">{selectedReport.period}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleDownload} className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"><Download className="w-4 h-4" />Télécharger</button>
+                    <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"><Printer className="w-4 h-4" />Imprimer</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <div className="text-center"><div className="text-3xl font-bold mb-1">{selectedReport.gpa.toFixed(2)}</div><p className="text-sm text-white/80">Moyenne</p></div>
+                  <div className="text-center"><div className="text-3xl font-bold mb-1">{selectedReport.rank}</div><p className="text-sm text-white/80">Rang</p></div>
+                  <div className="text-center"><div className="text-3xl font-bold mb-1">{selectedReport.status}</div><p className="text-sm text-white/80">Mention</p></div>
+                  <div className="text-center"><div className="text-3xl font-bold mb-1">{selectedReport.attendance}</div><p className="text-sm text-white/80">Assiduité</p></div>
+                </div>
               </div>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-[var(--color-bg-secondary)]">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
-                      Mati�re
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
-                      Enseignant
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
-                      Note
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
-                      Coef.
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
-                      Appr�ciation
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--color-border)]">
-                  {selectedReport.grades.map((grade, index) => (
-                    <tr key={index} className="hover:bg-[var(--color-bg-secondary)]">
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-[var(--color-text-primary)]">{grade.course}</div>
-                      </td>
-                      <td className="px-6 py-4 text-[var(--color-text-secondary)]">{grade.teacher}</td>
-                      <td className="px-6 py-4">
-                        <span className="font-semibold text-[var(--color-primary-navy)]">{grade.grade}/20</span>
-                      </td>
-                      <td className="px-6 py-4 text-[var(--color-text-secondary)]">{grade.coefficient}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          grade.grade >= 16 ? 'bg-green-100 text-green-800' :
-                          grade.grade >= 14 ? 'bg-blue-100 text-blue-800' :
-                          grade.grade >= 12 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {grade.grade >= 16 ? 'Excellent' :
-                           grade.grade >= 14 ? 'Tr�s bien' :
-                           grade.grade >= 12 ? 'Bien' : '� am�liorer'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
 
-          {/* Comments Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div
-              ref={commentsRef}
-              className={`card p-6 ${commentsVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
-            >
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-[var(--color-primary-navy)]" />
-                Appr�ciations g�n�rales
-              </h3>
-              <div className="space-y-4 text-[var(--color-text-secondary)]">
-                <p>
-                  <strong className="text-[var(--color-text-primary)]">Travail :</strong> L'�l�ve d�montre une bonne compr�hension des notions et participe activement.
-                </p>
-                <p>
-                  <strong className="text-[var(--color-text-primary)]">Comportement :</strong> Comportement respectueux envers les enseignants et les camarades.
-                </p>
-                <p>
-                  <strong className="text-[var(--color-text-primary)]">Progr�s :</strong> Progr�s constants tout au long du trimestre.
-                </p>
+              <div ref={tableRef} className={`card overflow-hidden ${tableVisible ? 'animate-slide-in-right' : 'opacity-0'}`}>
+                <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between">
+                  <h3 className="text-xl font-semibold text-[var(--color-text-primary)] flex items-center gap-2"><Award className="w-5 h-5 text-[var(--color-primary-navy)]" />Détails des matières</h3>
+                  <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]"><TrendingUp className="w-4 h-4" />Moyenne: {calculateAverage(selectedReport.grades)}/20</div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-[var(--color-bg-secondary)]">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">Matière</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">Enseignant</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">Note</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">Coef.</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">Appréciation</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--color-border)]">
+                      {selectedReport.grades.map((grade, index) => (
+                        <tr key={index} className="hover:bg-[var(--color-bg-secondary)]">
+                          <td className="px-6 py-4"><div className="font-medium text-[var(--color-text-primary)]">{grade.course}</div></td>
+                          <td className="px-6 py-4 text-[var(--color-text-secondary)]">{grade.teacher}</td>
+                          <td className="px-6 py-4"><span className="font-semibold text-[var(--color-primary-navy)]">{grade.grade}/20</span></td>
+                          <td className="px-6 py-4 text-[var(--color-text-secondary)]">{grade.coefficient}</td>
+                          <td className="px-6 py-4"><span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${grade.grade >= 16 ? 'bg-green-100 text-green-800' : grade.grade >= 14 ? 'bg-blue-100 text-blue-800' : grade.grade >= 12 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{grade.grade >= 16 ? 'Excellent' : grade.grade >= 14 ? 'Très bien' : grade.grade >= 12 ? 'Bien' : 'À améliorer'}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            <div
-              ref={historyRef}
-              className={`card p-6 ${historyVisible ? 'animate-slide-in-right' : 'opacity-0'}`}
-            >
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-[var(--color-primary-navy)]" />
-                Historique des bulletins
-              </h3>
-              <div className="space-y-3">
-                {reportCards.map((report) => (
-                  <button
-                    key={report.id}
-                    onClick={() => setSelectedTrimester(report.id)}
-                    className={`w-full flex items-center justify-between p-4 rounded-lg border transition-colors ${
-                      selectedTrimester === report.id
-                        ? 'border-[var(--color-primary-navy)] bg-[var(--color-primary-gold-light)]'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-primary-navy)]'
-                    }`}
-                  >
-                    <div className="text-left">
-                      <p className="font-medium text-[var(--color-text-primary)]">{report.title}</p>
-                      <p className="text-sm text-[var(--color-text-muted)]">{report.period}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-[var(--color-primary-navy)]">{report.gpa}/20</p>
-                      <p className="text-sm text-[var(--color-text-muted)]">{report.status}</p>
-                    </div>
-                  </button>
-                ))}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div ref={commentsRef} className={`card p-6 ${commentsVisible ? 'animate-slide-in-left' : 'opacity-0'}`}>
+                  <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-[var(--color-primary-navy)]" />Appréciations générales</h3>
+                  <div className="space-y-4 text-[var(--color-text-secondary)]">
+                    <p><strong className="text-[var(--color-text-primary)]">Travail :</strong> Données synchronisées depuis le serveur.</p>
+                    <p><strong className="text-[var(--color-text-primary)]">Comportement :</strong> Les appréciations détaillées seront affichées dès qu'elles sont disponibles côté API.</p>
+                    <p><strong className="text-[var(--color-text-primary)]">Progrès :</strong> Le bulletin se met à jour automatiquement à chaque synchronisation.</p>
+                  </div>
+                </div>
+                <div ref={historyRef} className={`card p-6 ${historyVisible ? 'animate-slide-in-right' : 'opacity-0'}`}>
+                  <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-[var(--color-primary-navy)]" />Historique des bulletins</h3>
+                  <div className="space-y-3"><div className="p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]"><div className="font-medium text-[var(--color-text-primary)]">Bulletin actuel</div><div className="text-sm text-[var(--color-text-secondary)]">Synchronisé en temps réel depuis les notes du serveur</div></div></div>
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>

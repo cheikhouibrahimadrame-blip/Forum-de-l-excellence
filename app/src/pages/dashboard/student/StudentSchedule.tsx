@@ -22,7 +22,7 @@ const StudentSchedule: React.FC = () => {
   const [schedule, setSchedule] = useState<Record<string, ScheduleEntry[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [attendanceStats, setAttendanceStats] = useState({ presence: '-', late: '-', absences: '-' });
+  const [attendanceStats] = useState({ presence: '-', late: '-', absences: '-' });
   const todayKey = new Date().toLocaleDateString('fr-FR', { weekday: 'long' }).toLowerCase();
 
   useEffect(() => {

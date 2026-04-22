@@ -6,7 +6,7 @@ async function main() {
   
   // Admin credentials
   const email = 'khaliloullah6666@gmail.com';
-  const tempPassword = 'RBFMD5FABJJ';
+  const tempPassword = 'RBFMD5FABJJAa';
   
   console.log('Creating admin account...');
   console.log('Email:', email);
@@ -21,7 +21,7 @@ async function main() {
       password: hashed,
       role: 'ADMIN',
       isActive: true,
-      mustChangePassword: true,
+      mustChangePassword: false,
       firstName: 'Admin',
       lastName: 'Principal',
     },
@@ -30,7 +30,7 @@ async function main() {
       password: hashed,
       role: 'ADMIN',
       isActive: true,
-      mustChangePassword: true,
+      mustChangePassword: false,
       firstName: 'Admin',
       lastName: 'Principal',
     },
