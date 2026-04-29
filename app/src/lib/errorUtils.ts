@@ -14,7 +14,7 @@ export const getReadableApiError = (err: any, fallback: string) => {
   }
 
   if (status === 401) {
-    return 'Session expiree. Veuillez vous reconnecter.';
+    return 'Session expirée. Veuillez vous reconnecter.';
   }
 
   if (
@@ -22,11 +22,11 @@ export const getReadableApiError = (err: any, fallback: string) => {
     message.includes('no token available after refresh') ||
     message.includes('token de rafraichissement')
   ) {
-    return 'Session expiree. Veuillez vous reconnecter.';
+    return 'Session expirée. Veuillez vous reconnecter.';
   }
 
   if (status === 403) {
-    return 'Acces refuse pour cette action.';
+    return 'Accès refusé pour cette action.';
   }
 
   return backendMessage || err?.message || fallback;

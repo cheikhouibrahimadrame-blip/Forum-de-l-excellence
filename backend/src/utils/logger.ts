@@ -4,6 +4,10 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 const logger = pino({
     level: process.env.LOG_LEVEL || (isDev ? 'debug' : 'info'),
+    redact: {
+        paths: ['password', '*.password', 'token', '*.token', 'secret', '*.secret'],
+        censor: '[REDACTED]'
+    },
     transport: isDev
         ? {
             target: 'pino-pretty',

@@ -1,6 +1,6 @@
 import type React from 'react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   Mail, 
@@ -10,7 +10,6 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import { api } from '../../lib/api';
 
 const LoginPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -21,8 +20,26 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) return;
+
+    if (user.mustChangePassword) {
+      navigate('/change-password', { replace: true });
+      return;
+    }
+
+    const roleRoutes: Record<string, string> = {
+      ADMIN: '/admin',
+      TEACHER: '/teacher',
+      STUDENT: '/student',
+      PARENT: '/parent'
+    };
+
+    navigate(roleRoutes[user.role] || '/', { replace: true });
+  }, [user, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (error) {
@@ -41,22 +58,11 @@ const LoginPage: React.FC = () => {
 
     try {
       await login(formData.email, formData.password);
-
-      const response = await api.get('/api/auth/me');
-      const data = response.data;
-
-      if (data?.data?.user?.mustChangePassword) {
-          navigate('/change-password');
-      } else {
-        const roleRoutes: Record<string, string> = {
-          ADMIN: '/admin',
-          TEACHER: '/teacher',
-          STUDENT: '/student',
-          PARENT: '/parent'
-        };
-        navigate(roleRoutes[data.data.user.role] || '/');
-      }
     } catch (err: any) {
+      if (err?.response?.status === 429) {
+        setError('Trop de tentatives. Attendez 1 minute.');
+        return;
+      }
       setError(err.message || 'Erreur de connexion. Veuillez réessayer.');
     } finally {
       setLoading(false);
@@ -101,6 +107,7 @@ const LoginPage: React.FC = () => {
               value={formData.email}
               onChange={handleChange}
               required
+              autoComplete="email"
               className="input-field pl-10"
               placeholder="votre@email.com"
             />
@@ -121,6 +128,7 @@ const LoginPage: React.FC = () => {
               value={formData.password}
               onChange={handleChange}
               required
+              autoComplete="current-password"
               className="input-field pl-10 pr-10"
               placeholder="********"
             />
@@ -132,6 +140,15 @@ const LoginPage: React.FC = () => {
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+        </div>
+
+        <div className="flex justify-end -mt-3">
+          <Link
+            to="/forgot-password"
+            className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+          >
+            Mot de passe oublie ?
+          </Link>
         </div>
 
         {/* Submit Button */}

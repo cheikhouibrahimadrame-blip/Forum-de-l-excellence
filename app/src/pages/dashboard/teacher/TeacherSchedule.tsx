@@ -6,6 +6,7 @@ import { api } from '../../../lib/api';
 
 interface ScheduleItem {
   id: string;
+  courseId?: string;
   className: string;
   subject: string;
   day: string;
@@ -16,11 +17,28 @@ interface ScheduleItem {
   type: 'lecture' | 'tutorial' | 'lab' | 'exam';
 }
 
+interface CourseOption {
+  id: string;
+  label: string;
+}
+
 const TeacherSchedule: React.FC = () => {
   const { user } = useAuth();
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [showAddModal, setShowAddModal] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const [courseOptions, setCourseOptions] = useState<CourseOption[]>([]);
+  const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState('');
+  const [requestForm, setRequestForm] = useState({
+    courseId: '',
+    dayOfWeek: 1,
+    startTime: '08:00',
+    endTime: '09:00',
+    classroom: '',
+    semester: 'S1',
+    year: new Date().getFullYear()
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -37,10 +55,12 @@ const TeacherSchedule: React.FC = () => {
         const response = await api.get(`/api/schedules/teacher/${user.teacher.id}`);
         const result = response.data;
         const teachingSchedule = result?.data?.teachingSchedule || {};
+        const itemMap = new Map<string, CourseOption>();
         const items: ScheduleItem[] = Object.entries(teachingSchedule).flatMap(([dayName, schedules]) => {
           if (!Array.isArray(schedules)) return [];
           return schedules.map((entry: any) => ({
             id: entry.scheduleId || `${dayName}-${entry.courseId || 'course'}-${entry.startTime || ''}`,
+            courseId: entry.courseId || '',
             className: entry.courseName || entry.courseCode || 'Cours',
             subject: entry.courseCode || entry.courseName || 'Cours',
             day: dayName,
@@ -49,10 +69,23 @@ const TeacherSchedule: React.FC = () => {
             classroom: entry.location || '-',
             students: entry.enrolledStudents || 0,
             type: 'lecture'
-          }));
+          })).map((item) => {
+            if (item.courseId) {
+              itemMap.set(item.courseId, {
+                id: item.courseId,
+                label: `${item.className} (${item.subject})`
+              });
+            }
+            return item;
+          });
         });
 
         setSchedule(items);
+        const mappedCourses = Array.from(itemMap.values());
+        setCourseOptions(mappedCourses);
+        if (mappedCourses.length > 0) {
+          setRequestForm((prev) => ({ ...prev, courseId: prev.courseId || mappedCourses[0].id }));
+        }
       } catch (err) {
         console.error('Error loading teacher schedule:', err);
         setError('Erreur lors du chargement de votre emploi du temps.');
@@ -134,6 +167,35 @@ const TeacherSchedule: React.FC = () => {
     
     return itemIndex > todayIndex || (itemIndex === todayIndex && itemHour > currentHour);
   }).slice(0, 3);
+
+  const handleCreateRequest = async () => {
+    if (!user?.teacher?.id) return;
+    if (!requestForm.courseId || !requestForm.classroom.trim()) {
+      setSubmitError('Veuillez renseigner le cours et la salle.');
+      return;
+    }
+
+    try {
+      setSubmitError('');
+      setSubmitSuccess('');
+      await api.post('/api/schedules', {
+        courseId: requestForm.courseId,
+        teacherId: user.teacher.id,
+        classroom: requestForm.classroom.trim(),
+        dayOfWeek: requestForm.dayOfWeek,
+        startTime: requestForm.startTime,
+        endTime: requestForm.endTime,
+        semester: requestForm.semester,
+        year: requestForm.year
+      });
+
+      setSubmitSuccess('Demande envoyée avec succès pour validation admin.');
+      setShowAddModal(false);
+      setRequestForm((prev) => ({ ...prev, classroom: '' }));
+    } catch (err: any) {
+      setSubmitError(err?.response?.data?.error || 'Erreur lors de l\'envoi de la demande.');
+    }
+  };
 
   return (
     <div className="section">
@@ -316,6 +378,16 @@ const TeacherSchedule: React.FC = () => {
       {error && (
         <div className="text-sm text-red-600">{error}</div>
       )}
+      {submitSuccess && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {submitSuccess}
+        </div>
+      )}
+      {submitError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {submitError}
+        </div>
+      )}
 
       {/* Add Schedule Modal */}
       {showAddModal && (
@@ -335,34 +407,43 @@ const TeacherSchedule: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                  Classe
+                  Cours
                 </label>
-                <input type="text" className="input-field w-full" placeholder="Nom de la classe" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                  Matière
-                </label>
-                <input type="text" className="input-field w-full" placeholder="Nom de la matière" />
+                <select
+                  className="input-field w-full"
+                  value={requestForm.courseId}
+                  onChange={(e) => setRequestForm((prev) => ({ ...prev, courseId: e.target.value }))}
+                >
+                  {courseOptions.length === 0 && <option value="">Aucun cours disponible</option>}
+                  {courseOptions.map((course) => (
+                    <option key={course.id} value={course.id}>{course.label}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                     Jour
                   </label>
-                  <select className="input-field w-full">
-                    {days.map(day => <option key={day} value={day}>{day}</option>)}
+                  <select
+                    className="input-field w-full"
+                    value={requestForm.dayOfWeek}
+                    onChange={(e) => setRequestForm((prev) => ({ ...prev, dayOfWeek: Number(e.target.value) }))}
+                  >
+                    {days.map((day, index) => <option key={day} value={index + 1}>{day}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                    Type
+                    Semestre
                   </label>
-                  <select className="input-field w-full">
-                    <option value="lecture">Cours magistral</option>
-                    <option value="tutorial">Travaux dirigés</option>
-                    <option value="lab">Travaux pratiques</option>
-                    <option value="exam">Examen</option>
+                  <select
+                    className="input-field w-full"
+                    value={requestForm.semester}
+                    onChange={(e) => setRequestForm((prev) => ({ ...prev, semester: e.target.value }))}
+                  >
+                    <option value="S1">S1</option>
+                    <option value="S2">S2</option>
                   </select>
                 </div>
               </div>
@@ -371,29 +452,56 @@ const TeacherSchedule: React.FC = () => {
                   <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                     Heure de début
                   </label>
-                  <input type="time" className="input-field w-full" />
+                  <input
+                    type="time"
+                    className="input-field w-full"
+                    value={requestForm.startTime}
+                    onChange={(e) => setRequestForm((prev) => ({ ...prev, startTime: e.target.value }))}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                     Heure de fin
                   </label>
-                  <input type="time" className="input-field w-full" />
+                  <input
+                    type="time"
+                    className="input-field w-full"
+                    value={requestForm.endTime}
+                    onChange={(e) => setRequestForm((prev) => ({ ...prev, endTime: e.target.value }))}
+                  />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                   Salle
                 </label>
-                <input type="text" className="input-field w-full" placeholder="Numéro de salle" />
+                <input
+                  type="text"
+                  className="input-field w-full"
+                  placeholder="Numéro de salle"
+                  value={requestForm.classroom}
+                  onChange={(e) => setRequestForm((prev) => ({ ...prev, classroom: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                  Année
+                </label>
+                <input
+                  type="number"
+                  className="input-field w-full"
+                  value={requestForm.year}
+                  onChange={(e) => setRequestForm((prev) => ({ ...prev, year: Number(e.target.value) || new Date().getFullYear() }))}
+                />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button 
                 className="btn-primary flex-1"
-                onClick={() => setShowAddModal(false)}
+                onClick={handleCreateRequest}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Ajouter
+                Envoyer la demande
               </button>
               <button 
                 className="btn-secondary flex-1"

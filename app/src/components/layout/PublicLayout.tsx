@@ -46,11 +46,16 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   useEffect(() => {
     const loadCollegeInfo = async () => {
       try {
-        const response = await api.get('/api/settings');
+        const response = await api.get('/api/settings/appearance');
         const data = response.data;
 
-        if (data.success && data.data && data.data.general) {
-          setCollegeInfo(data.data.general);
+        if (data.success && data.data) {
+          setCollegeInfo((prev) => ({
+            ...prev,
+            name: data.data.schoolName || prev.name,
+            phone: data.data.schoolPhone || prev.phone,
+            email: data.data.schoolEmail || prev.email
+          }));
         }
       } catch (error) {
         console.error("Erreur lors du chargement des infos du college:", error);

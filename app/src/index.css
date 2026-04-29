@@ -1132,3 +1132,469 @@
 .dark select {
   color-scheme: dark;
 }
+
+/* ============================================================
+   LIVING HOMEPAGE — kinetic design system
+   Floating blobs, gradient flow, marquee, spotlight, tilt,
+   scroll cue, shine, mesh background, magnetic underline.
+   ============================================================ */
+
+/* ── Floating blurred blobs (hero ambient) ───────────────── */
+@keyframes oak-blob {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    border-radius: 56% 44% 62% 38% / 50% 56% 44% 50%;
+  }
+  33% {
+    transform: translate3d(40px, -34px, 0) scale(1.08);
+    border-radius: 64% 36% 50% 50% / 42% 60% 40% 58%;
+  }
+  66% {
+    transform: translate3d(-28px, 30px, 0) scale(0.95);
+    border-radius: 42% 58% 38% 62% / 58% 42% 60% 40%;
+  }
+}
+
+.oak-blob {
+  position: absolute;
+  filter: blur(64px);
+  opacity: 0.55;
+  animation: oak-blob 14s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  pointer-events: none;
+  will-change: transform, border-radius;
+}
+
+.oak-blob-olive    { background: #aac240; }
+.oak-blob-peach    { background: #ffd089; }
+.oak-blob-chartreuse { background: #eff3a2; }
+.oak-blob-sage     { background: #bccdb6; }
+.oak-blob-gold     { background: #ddb957; }
+
+.oak-blob-delay-1 { animation-delay: -3s;  }
+.oak-blob-delay-2 { animation-delay: -6s;  }
+.oak-blob-delay-3 { animation-delay: -9s;  }
+
+/* ── Animated gradient text ──────────────────────────────── */
+@keyframes oak-gradient-flow {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+.oak-living-text {
+  background: linear-gradient(120deg, #6f8a1f 0%, #aac240 25%, #ddb957 50%, #c98d36 75%, #6f8a1f 100%);
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: oak-gradient-flow 9s ease-in-out infinite;
+}
+
+.oak-living-text-hero {
+  background: linear-gradient(120deg, #ffe2ad 0%, #fff8e1 22%, #eff3a2 44%, #c9dba8 66%, #ffd089 88%, #ffe2ad 100%);
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: oak-gradient-flow 8s ease-in-out infinite;
+  filter: drop-shadow(0 4px 18px rgba(20, 30, 8, 0.35));
+}
+
+/* ── Infinite marquee ────────────────────────────────────── */
+@keyframes oak-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+.oak-marquee {
+  display: flex;
+  width: max-content;
+  gap: 3rem;
+  animation: oak-marquee 38s linear infinite;
+  will-change: transform;
+}
+
+.oak-marquee:hover { animation-play-state: paused; }
+
+.oak-marquee-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: clamp(1rem, 1.4vw, 1.4rem);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.oak-marquee-bullet {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+/* ── Parallax (uses --px / --py CSS vars from JS) ────────── */
+.oak-parallax {
+  transform: translate3d(calc(var(--px, 0) * -10px), calc(var(--py, 0) * -10px), 0);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.oak-parallax-deep {
+  transform: translate3d(calc(var(--px, 0) * -22px), calc(var(--py, 0) * -22px), 0);
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.oak-parallax-soft {
+  transform: translate3d(calc(var(--px, 0) * -5px), calc(var(--py, 0) * -5px), 0);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+/* ── Slow ambient float (decorations) ────────────────────── */
+@keyframes oak-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-14px); }
+}
+
+.oak-float       { animation: oak-float 6s ease-in-out infinite; }
+.oak-float-slow  { animation: oak-float 9s ease-in-out infinite; animation-delay: -3s; }
+.oak-float-fast  { animation: oak-float 4s ease-in-out infinite; animation-delay: -1s; }
+
+/* ── Scroll cue (down arrow) ─────────────────────────────── */
+@keyframes oak-scroll-cue {
+  0%   { transform: translateY(0);  opacity: 0.9; }
+  60%  { transform: translateY(10px); opacity: 0.25; }
+  100% { transform: translateY(0);  opacity: 0.9; }
+}
+
+.oak-scroll-cue { animation: oak-scroll-cue 2.2s ease-in-out infinite; }
+
+/* ── Spotlight (mouse-following radial) on cards ─────────── */
+.oak-spotlight {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.oak-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    320px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in oklch, var(--oak-olive) 28%, transparent) 0%,
+    color-mix(in oklch, var(--oak-peach) 18%, transparent) 35%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 250ms ease;
+  z-index: 0;
+}
+
+.oak-spotlight:hover::before { opacity: 1; }
+
+.oak-spotlight > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 3D Tilt (driven by JS via inline transform) ─────────── */
+.oak-tilt {
+  transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 380ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.oak-tilt:hover { box-shadow: var(--shadow-lg); }
+
+/* ── Sweep shine on hover (buttons / cards) ──────────────── */
+@keyframes oak-shine {
+  0%   { transform: translateX(-120%) skewX(-18deg); }
+  100% { transform: translateX(220%)  skewX(-18deg); }
+}
+
+.oak-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.oak-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.32) 50%,
+    transparent 100%
+  );
+  transform: translateX(-120%) skewX(-18deg);
+  pointer-events: none;
+}
+
+.oak-shine:hover::after {
+  animation: oak-shine 900ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Magnetic underline (animated on hover) ──────────────── */
+.oak-magnetic-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.oak-magnetic-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -3px;
+  width: 100%;
+  height: 2px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.oak-magnetic-link:hover::after {
+  transform: scaleX(1);
+  transform-origin: left center;
+}
+
+/* ── Animated mesh background (CTA / sections) ───────────── */
+@keyframes oak-mesh-shift {
+  0%, 100% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      50% 50%,
+      0% 100%;
+  }
+  50% {
+    background-position:
+      100% 30%,
+      0% 70%,
+      30% 0%,
+      100% 0%;
+  }
+}
+
+.oak-mesh-bg {
+  background-color: var(--oak-bg);
+  background-image:
+    radial-gradient(at 18% 24%, color-mix(in oklch, var(--oak-olive) 55%, white) 0px, transparent 48%),
+    radial-gradient(at 82% 78%, color-mix(in oklch, var(--oak-peach) 70%, white) 0px, transparent 48%),
+    radial-gradient(at 60% 48%, color-mix(in oklch, var(--oak-chartreuse) 65%, white) 0px, transparent 50%),
+    radial-gradient(at 30% 92%, color-mix(in oklch, var(--oak-sage) 55%, white) 0px, transparent 50%);
+  background-size: 220% 220%, 220% 220%, 220% 220%, 220% 220%;
+  animation: oak-mesh-shift 18s ease-in-out infinite;
+}
+
+.oak-mesh-bg-dark {
+  background-color: #1a201a;
+  background-image:
+    radial-gradient(at 20% 25%, color-mix(in oklch, var(--oak-olive) 50%, black) 0px, transparent 50%),
+    radial-gradient(at 78% 70%, color-mix(in oklch, var(--oak-gold, #ddb957) 35%, black) 0px, transparent 50%),
+    radial-gradient(at 50% 92%, color-mix(in oklch, var(--oak-chartreuse) 30%, black) 0px, transparent 50%);
+  background-size: 200% 200%, 200% 200%, 200% 200%;
+  animation: oak-mesh-shift 22s ease-in-out infinite;
+}
+
+/* ── Pulse ring (focal indicators) ───────────────────────── */
+@keyframes oak-pulse-ring {
+  0%   { transform: scale(0.85); opacity: 0.55; }
+  80%  { transform: scale(1.55); opacity: 0; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+.oak-pulse-ring {
+  position: relative;
+}
+
+.oak-pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: var(--oak-olive);
+  opacity: 0;
+  animation: oak-pulse-ring 2.6s ease-out infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ── Soft rotating gradient ring (for badges/avatars) ────── */
+@keyframes oak-rotate-slow {
+  to { transform: rotate(360deg); }
+}
+
+.oak-ring-rotate {
+  position: relative;
+  isolation: isolate;
+}
+
+.oak-ring-rotate::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    var(--oak-olive),
+    var(--oak-chartreuse),
+    var(--oak-peach),
+    var(--oak-gold, #ddb957),
+    var(--oak-olive)
+  );
+  animation: oak-rotate-slow 6s linear infinite;
+  z-index: -1;
+}
+
+/* ── Reveal-on-scroll utility (used with IntersectionObserver) */
+.oak-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 700ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.oak-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.oak-reveal-delay-1 { transition-delay: 80ms;  }
+.oak-reveal-delay-2 { transition-delay: 160ms; }
+.oak-reveal-delay-3 { transition-delay: 240ms; }
+.oak-reveal-delay-4 { transition-delay: 320ms; }
+
+/* ── Bento grid for campus showcase ──────────────────────── */
+.oak-bento {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 180px;
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .oak-bento {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 160px;
+  }
+}
+
+.oak-bento-item {
+  position: relative;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 420ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.oak-bento-item img,
+.oak-bento-item video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1),
+              filter   400ms ease;
+}
+
+.oak-bento-item:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.oak-bento-item:hover img,
+.oak-bento-item:hover video {
+  transform: scale(1.06);
+}
+
+.oak-bento-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent 40%,
+    rgba(20, 26, 14, 0.78) 100%
+  );
+  display: flex;
+  align-items: flex-end;
+  padding: 1rem 1.1rem;
+  color: #f6f8ee;
+  font-weight: 600;
+  font-size: 0.9rem;
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+.oak-bento-item:hover .oak-bento-overlay {
+  opacity: 1;
+}
+
+/* Bento sizing */
+.oak-bento-1x1 { grid-column: span 1; grid-row: span 1; }
+.oak-bento-2x1 { grid-column: span 2; grid-row: span 1; }
+.oak-bento-1x2 { grid-column: span 1; grid-row: span 2; }
+.oak-bento-2x2 { grid-column: span 2; grid-row: span 2; }
+
+@media (max-width: 900px) {
+  .oak-bento-2x1 { grid-column: span 2; }
+  .oak-bento-2x2 { grid-column: span 2; grid-row: span 2; }
+  .oak-bento-1x2 { grid-column: span 1; grid-row: span 2; }
+}
+
+/* ── Glass card (used in hero floating panel) ────────────── */
+.oak-glass {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 14px 38px rgba(8, 14, 4, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.oak-glass-dark {
+  background: rgba(20, 26, 16, 0.42);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Reduce motion — kill all the kinetic stuff for users who ask */
+@media (prefers-reduced-motion: reduce) {
+  .oak-blob,
+  .oak-living-text,
+  .oak-living-text-hero,
+  .oak-marquee,
+  .oak-float,
+  .oak-float-slow,
+  .oak-float-fast,
+  .oak-scroll-cue,
+  .oak-mesh-bg,
+  .oak-mesh-bg-dark,
+  .oak-ring-rotate::before,
+  .oak-pulse-ring::before {
+    animation: none !important;
+  }
+  .oak-parallax,
+  .oak-parallax-deep,
+  .oak-parallax-soft {
+    transform: none !important;
+  }
+}

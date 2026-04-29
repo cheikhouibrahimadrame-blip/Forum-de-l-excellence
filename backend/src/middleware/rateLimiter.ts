@@ -8,6 +8,7 @@ let redisClient: ReturnType<typeof createClient> | null = null;
 
 export type RateLimiters = {
   loginRateLimiter: RateLimitRequestHandler;
+  refreshRateLimiter: RateLimitRequestHandler;
   passwordChangeRateLimiter: RateLimitRequestHandler;
   apiRateLimiter: RateLimitRequestHandler;
 };
@@ -92,6 +93,25 @@ export const createRateLimiters = (store?: RedisStore): RateLimiters => ({
       return req.ip || req.socket.remoteAddress || 'unknown';
     }
   }),
+  refreshRateLimiter: rateLimit({
+    store,
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 10, // Max 10 refresh attempts per minute
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: 'Trop de tentatives de rafraîchissement. Veuillez réessayer dans 1 minute.',
+      retryAfter: 60
+    },
+    handler: (_req, res) => {
+      res.status(429).json({
+        success: false,
+        error: 'Trop de tentatives de rafraîchissement. Veuillez réessayer dans 1 minute.',
+        retryAfter: 60
+      });
+    }
+  }),
   passwordChangeRateLimiter: rateLimit({
     store,
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -126,7 +146,7 @@ export const createRateLimiters = (store?: RedisStore): RateLimiters => ({
         return true;
       }
 
-      if (req.path === '/api/health' || req.path === '/health') {
+      if (req.path === '/health') {
         return true;
       }
 

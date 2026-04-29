@@ -56,6 +56,72 @@ export const createHomework = async (req: AuthenticatedRequest, res: Response): 
       },
     });
 
+    // Immediate notifications for relevant students and linked parents.
+    if (homework.courseId) {
+      const course = await prisma.course.findUnique({
+        where: { id: homework.courseId },
+        select: {
+          name: true,
+          code: true,
+          enrollments: {
+            select: {
+              student: {
+                select: {
+                  userId: true,
+                  user: {
+                    select: {
+                      firstName: true,
+                      lastName: true
+                    }
+                  },
+                  parentStudents: {
+                    include: {
+                      parent: {
+                        select: {
+                          userId: true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (course) {
+        const studentMessages = course.enrollments
+          .map((enrollment) => enrollment.student)
+          .filter((student) => !!student.userId)
+          .map((student) => ({
+            senderId: req.user!.id,
+            receiverId: student.userId,
+            subject: 'Nouveau devoir publié',
+            content: `Un nouveau devoir a été publié pour ${course.code} ${course.name}: ${homework.title}.`
+          }));
+
+        const parentMessages = course.enrollments
+          .flatMap((enrollment) => {
+            const student = enrollment.student;
+            const childName = [student.user?.firstName, student.user?.lastName].filter(Boolean).join(' ').trim();
+            return student.parentStudents
+              .filter((link) => !!link.parent?.userId)
+              .map((link) => ({
+                senderId: req.user!.id,
+                receiverId: link.parent!.userId,
+                subject: 'Nouveau devoir pour votre enfant',
+                content: `Nouveau devoir pour ${childName || 'votre enfant'} (${course.code} ${course.name}): ${homework.title}.`
+              }));
+          });
+
+        const allMessages = [...studentMessages, ...parentMessages];
+        if (allMessages.length > 0) {
+          await prisma.message.createMany({ data: allMessages });
+        }
+      }
+    }
+
     await logAudit(prisma, {
       userId: req.user?.id,
       action: 'CREATE',
@@ -63,7 +129,7 @@ export const createHomework = async (req: AuthenticatedRequest, res: Response): 
       entityId: homework.id
     });
 
-    res.json({ success: true, data: homework });
+    res.json({ success: true, data: { ...homework, publicationStatus: 'PUBLISHED' } });
   } catch (error) {
     logger.error({ error }, 'Erreur lors de la création du devoir:');
     res.status(500).json({ success: false, error: 'Erreur serveur' });

@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Users, Search, Mail, Phone, FileText, TrendingUp, AlertCircle, CheckCircle, XCircle, ChevronDown, Eye, MessageSquare, Award } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 interface Student {
   id: string;
@@ -29,6 +30,7 @@ const TeacherStudents: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [classes, setClasses] = useState<string[]>(['all']);
+  const refreshTick = useLiveRefresh(15000);
 
   useEffect(() => {
     const loadStudents = async () => {
@@ -36,12 +38,12 @@ const TeacherStudents: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const response = await api.get('/api/users', { params: { role: 'STUDENT', limit: 200 } });
+        const response = await api.get('/api/classes/teacher/students');
         const result = response.data;
-        const userItems = Array.isArray(result?.data?.users) ? result.data.users : [];
+        const userItems = Array.isArray(result?.data?.students) ? result.data.students : [];
 
         const mapped = userItems.map((user: any) => {
-          const gpa = typeof user.student?.gpa === 'number' ? user.student.gpa : null;
+          const gpa = typeof user.average === 'number' ? user.average : null;
           let status: Student['status'] = 'active';
           if (gpa != null) {
             if (gpa >= 16) status = 'excellent';
@@ -54,8 +56,8 @@ const TeacherStudents: React.FC = () => {
             lastName: user.lastName || '',
             email: user.email || '',
             phone: user.phone || '',
-            className: user.student?.major || '',
-            level: user.student?.status || '',
+            className: user.className || '',
+            level: user.level || '',
             average: gpa,
             attendance: null,
             status,
@@ -80,7 +82,7 @@ const TeacherStudents: React.FC = () => {
     };
 
     loadStudents();
-  }, []);
+  }, [refreshTick]);
 
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||

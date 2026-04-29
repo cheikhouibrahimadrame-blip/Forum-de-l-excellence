@@ -11,6 +11,7 @@ import { initializePrisma } from './lib/prisma';
 import { validateEnvOrCrash } from './utils/env';
 import { getJwtSecrets, initializeSecretProvider } from './utils/secretProvider';
 import { createRateLimiters, initializeRateLimiterStore } from './middleware/rateLimiter';
+import { errorHandler } from './middleware/errorHandler';
 
 const PORT = process.env.PORT || 5000;
 
@@ -70,7 +71,7 @@ const startServer = async () => {
         frameAncestors: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
-        upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
+        ...(process.env.NODE_ENV === 'production' ? { upgradeInsecureRequests: [] } : {}),
       },
     },
     crossOriginEmbedderPolicy: false,
@@ -132,22 +133,13 @@ const startServer = async () => {
   app.use('/api', rateLimiters.apiRateLimiter);
   // NOTE: Auth-specific rate limiting is handled in routes/auth.ts
 
-  // Health check
-  app.get('/api/health', (req, res) => {
-    res.json({
-      success: true,
-      message: 'Forum de L\'excellence API est en ligne',
-      timestamp: new Date().toISOString()
-    });
-  });
-
   // Routes
   app.use('/api/auth', createAuthRouter({
     loginRateLimiter: rateLimiters.loginRateLimiter,
+    refreshRateLimiter: rateLimiters.refreshRateLimiter,
     passwordChangeRateLimiter: rateLimiters.passwordChangeRateLimiter
   }));
   app.use('/api/users', userRoutes);
-  app.use('/api/admin/users', userRoutes);
   app.use('/api/grades', gradeRoutes);
   app.use('/api/schedules', scheduleRoutes);
   app.use('/api/appointments', appointmentRoutes);
@@ -178,25 +170,8 @@ const startServer = async () => {
     });
   });
 
-  // Global error handler - NEVER crash the server
-  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    logger.error({
-      path: req.path,
-      method: req.method,
-      error: err.message,
-      stack: err.stack,
-    }, 'Unhandled server error');
-
-    // Always respond, even if headers already sent
-    if (!res.headersSent) {
-      res.status(err.status || 500).json({
-        success: false,
-        message: process.env.NODE_ENV === 'production'
-          ? 'Une erreur est survenue. Veuillez réessayer.'
-          : err.message || 'Erreur serveur interne'
-      });
-    }
-  });
+  // Global error handler
+  app.use(errorHandler);
 
   // Catch unhandled promise rejections
   process.on('unhandledRejection', (reason, promise) => {
@@ -216,6 +191,21 @@ const startServer = async () => {
 };
 
 startServer().catch((error) => {
+  // Print full error details to stdout to aid debugging (ts-node/Prisma diagnostics can be nested)
+  try {
+    // Print stack if available
+    if (error && (error as any).stack) {
+      // eslint-disable-next-line no-console
+      console.error((error as any).stack);
+    }
+    // Attempt JSON serialization including non-enumerable properties
+    // eslint-disable-next-line no-console
+    console.error('Startup error full:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to stringify startup error', e);
+  }
+
   logger.fatal({ error }, 'Fatal startup error');
   process.exit(1);
 });

@@ -90,7 +90,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = response.data;
 
       setAccessToken(data.data.accessToken);
-      setUser(data.data.user);
+      setUser({
+        ...data.data.user,
+        mustChangePassword: data.data.mustChangePassword ?? false
+      });
     } catch (error: any) {
       clearAccessToken();
       setUser(null);
@@ -103,7 +106,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (status === 403) {
           throw new Error('Compte désactivé. Contactez l\'administrateur');
         }
-        throw new Error(error.response?.data?.error || 'Erreur de connexion. Veuillez réessayer.');
+        if (status === 429) {
+          throw new Error('Trop de tentatives. Attendez 1 minute.');
+        }
+        throw new Error(error.response?.data?.error || error?.data?.error || 'Erreur de connexion. Veuillez réessayer.');
       }
 
       throw new Error('Le serveur ne renvoie pas de réponse valide. Vérifiez la connexion au backend.');

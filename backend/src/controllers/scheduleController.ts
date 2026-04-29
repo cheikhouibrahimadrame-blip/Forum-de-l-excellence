@@ -406,7 +406,8 @@ export const getScheduleSummary = async (_req: AuthenticatedRequest, res: Respon
       data: {
         published: activeSchedules,
         classesCovered,
-        pending: Math.max(totalSchedules - activeSchedules, 0)
+        pending: pendingScheduleRequests.filter((item) => item.status === 'PENDING_APPROVAL').length,
+        archived: Math.max(totalSchedules - activeSchedules, 0)
       }
     });
   } catch (error) {

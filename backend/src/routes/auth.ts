@@ -7,23 +7,38 @@ import {
   loginValidation, 
   changePassword, 
   changePasswordValidation,
-  forceLogout
+  forceLogout,
+  forgotPassword,
+  forgotPasswordValidation,
+  resetPassword,
+  resetPasswordValidation
 } from '../controllers/authController';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authorizeRoles } from '../middleware/auth';
 import type { RateLimiters } from '../middleware/rateLimiter';
 
-export const createAuthRouter = (rateLimiters: Pick<RateLimiters, 'loginRateLimiter' | 'passwordChangeRateLimiter'>) => {
+export const createAuthRouter = (rateLimiters: Pick<RateLimiters, 'loginRateLimiter' | 'refreshRateLimiter' | 'passwordChangeRateLimiter'>) => {
   const router = express.Router();
 
-// SECURITY: Rate limit login attempts (5 per minute per IP)
+  // SECURITY: Rate limit login attempts (5 per minute per IP)
   router.post('/login', rateLimiters.loginRateLimiter, loginValidation, login);
-router.post('/refresh', refreshToken);
-router.post('/logout', logout);
-router.get('/me', authenticate, getMe);
-// SECURITY: Rate limit password change attempts (3 per 15 minutes)
+  router.post('/forgot-password', rateLimiters.loginRateLimiter, forgotPasswordValidation, forgotPassword);
+  router.post('/reset-password', rateLimiters.loginRateLimiter, resetPasswordValidation, resetPassword);
+  // SECURITY: Rate limit refresh attempts (10 per minute per IP)
+  router.post('/refresh', rateLimiters.refreshRateLimiter, refreshToken);
+  router.post('/logout', logout);
+  router.get('/me', authenticate, getMe);
+
+  // SECURITY: Rate limit password change attempts (3 per 15 minutes)
   router.post('/change-password', authenticate, rateLimiters.passwordChangeRateLimiter, changePasswordValidation, changePassword);
-// Force logout endpoint (admin or user can invalidate all tokens)
-router.post('/force-logout', authenticate, forceLogout);
+
+  // Force logout endpoint (admin or user can invalidate all tokens)
+  router.post('/force-logout', authenticate, (req: any, res, next) => {
+    if (req.body?.userId && req.body.userId !== req.user?.id) {
+      return authorizeRoles(['ADMIN'])(req, res, next);
+    }
+    next();
+  }, forceLogout);
+
   return router;
 };
 

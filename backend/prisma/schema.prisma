@@ -181,6 +181,19 @@ model Course {
   @@index([teacherId])
 }
 
+// Simple Subject model used by the legacy subjects routes
+model Subject {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique @db.VarChar(20)
+  name      String   @db.VarChar(100)
+  description String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+}
+
 model Enrollment {
   id             String           @id @default(uuid()) @db.Uuid
   studentId      String           @db.Uuid
@@ -566,6 +579,53 @@ model SecretRotationAudit {
   @@index([reason])
 }
 
+// Primary-school focused models: Academic years, trimesters, classes, grade locks
+model AcademicYear {
+  id        String     @id @default(uuid()) @db.Uuid
+  year      String     @db.VarChar(20)
+  startDate DateTime   @db.Date
+  endDate   DateTime   @db.Date
+  isActive  Boolean    @default(false)
+  trimesters Trimester[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([year])
+}
+
+model Trimester {
+  id              String       @id @default(uuid()) @db.Uuid
+  academicYearId  String       @db.Uuid
+  name            String       @db.VarChar(100)
+  startDate       DateTime     @db.Date
+  endDate         DateTime     @db.Date
+  isActive        Boolean      @default(false)
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+
+  @@index([academicYearId])
+}
+
+model GradeLock {
+  id       String   @id @default(uuid()) @db.Uuid
+  period   String   @db.VarChar(100)
+  reason   String?
+  lockedAt DateTime @default(now())
+  createdBy String? @db.Uuid
+}
+
+model Class {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(100)
+  level          String?  @db.VarChar(50)
+  capacity       Int?
+  mainTeacherId  String?  @db.Uuid
+  academicYearId String?  @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([academicYearId])
+}
 enum Role {
   STUDENT
   PARENT

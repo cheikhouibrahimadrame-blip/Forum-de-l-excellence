@@ -31,11 +31,20 @@ type ClassCard = {
   avgGrade: string;
 };
 
+type SubjectAssignment = {
+  id: string;
+  subjectName: string;
+  subjectCode: string;
+  classroomName: string;
+  schoolYear: string;
+};
+
 const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const refreshTick = useLiveRefresh(15000);
   const [classCards, setClassCards] = useState<ClassCard[]>([]);
+  const [subjectAssignments, setSubjectAssignments] = useState<SubjectAssignment[]>([]);
   const [stats, setStats] = useState([
     { label: 'Ma Classe', value: '-', icon: BookOpen, color: 'bg-blue-500' },
     { label: 'Élèves', value: '-', icon: Users, color: 'bg-green-500' },
@@ -77,9 +86,16 @@ const TeacherDashboard: React.FC = () => {
       try {
         setLoadError('');
         setLoadingData(true);
-        const response = await api.get(`/api/schedules/teacher/${user.teacher.id}`);
-        const result = response.data;
+        const [scheduleResponse, subjectsResponse] = await Promise.all([
+          api.get(`/api/schedules/teacher/${user.teacher.id}`),
+          api.get('/api/subjects/teacher/assignments')
+        ]);
+
+        const result = scheduleResponse.data;
         const teachingSchedule = result?.data?.teachingSchedule || {};
+        const assignments = Array.isArray(subjectsResponse.data?.data?.assignments)
+          ? subjectsResponse.data.data.assignments
+          : [];
 
         const dayOrder: Record<string, number> = {
           Lundi: 1,
@@ -124,6 +140,15 @@ const TeacherDashboard: React.FC = () => {
 
         const classList = Array.from(classMap.values()).slice(0, 3);
         setClassCards(classList);
+        setSubjectAssignments(
+          assignments.map((item: any) => ({
+            id: String(item.id || ''),
+            subjectName: item.subjectName || 'Matière',
+            subjectCode: item.subjectCode || '',
+            classroomName: item.classroomName || '',
+            schoolYear: item.schoolYear || ''
+          })).filter((item: SubjectAssignment) => item.id && item.subjectName)
+        );
 
         const totalStudents = items.reduce((sum, item) => sum + (item.enrolledStudents || 0), 0);
 
@@ -246,6 +271,26 @@ const TeacherDashboard: React.FC = () => {
                 <div className="flex justify-between"><span>Élèves</span><span className="font-semibold">{stats[1]?.value}</span></div>
                 <div className="flex justify-between"><span>Cahiers à corriger</span><span className="font-semibold">{stats[2]?.value}</span></div>
               </div>
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Matières assignées</h3>
+              <span className="text-sm text-[var(--color-text-muted)]">{subjectAssignments.length} matière(s)</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {subjectAssignments.map((assignment) => (
+                <div key={assignment.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+                  <div className="text-sm font-semibold text-[var(--color-text-primary)]">{assignment.subjectName}</div>
+                  <div className="text-xs text-[var(--color-text-muted)] font-mono">{assignment.subjectCode}</div>
+                  <div className="mt-2 text-sm text-[var(--color-text-secondary)]">{assignment.classroomName}</div>
+                  <div className="text-xs text-[var(--color-text-muted)] mt-1">Année {assignment.schoolYear}</div>
+                </div>
+              ))}
+              {subjectAssignments.length === 0 && (
+                <div className="text-sm text-[var(--color-text-secondary)]">Aucune matière assignée pour le moment.</div>
+              )}
             </div>
           </div>
 

@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
 import crypto from 'crypto';
+import { loadJsonStore, saveJsonStore } from '../lib/jsonStore';
 
 const router = Router();
 
-let reportsStore: Array<{
+type ReportItem = {
   id: string;
   name: string;
   type: 'academic' | 'financial' | 'administrative';
@@ -13,7 +14,14 @@ let reportsStore: Array<{
   generatedBy: string;
   recipients: number;
   status: 'draft' | 'published' | 'archived';
-}> = [];
+};
+
+const REPORTS_FILE = 'reports.json';
+let reportsStore: ReportItem[] = loadJsonStore<ReportItem[]>(REPORTS_FILE, []);
+
+const persistReports = () => {
+  saveJsonStore(REPORTS_FILE, reportsStore);
+};
 
 router.use(authenticate);
 
@@ -41,6 +49,7 @@ router.post('/', authorize(['ADMIN']), (req, res) => {
   };
 
   reportsStore = [newReport, ...reportsStore];
+  persistReports();
   res.status(201).json({ success: true, data: newReport });
 });
 
@@ -60,6 +69,7 @@ router.put('/:reportId', authorize(['ADMIN']), (req, res) => {
   };
 
   reportsStore[index] = updated;
+  persistReports();
   res.json({ success: true, data: updated });
 });
 
@@ -73,6 +83,7 @@ router.delete('/:reportId', authorize(['ADMIN']), (req, res) => {
   }
 
   reportsStore = reportsStore.filter(item => item.id !== reportId);
+  persistReports();
   res.json({ success: true });
 });
 

@@ -9,12 +9,27 @@ interface ClassItem {
   name: string;
 }
 
+interface ScheduleRequest {
+  id: string;
+  courseId: string;
+  classroom: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  semester: string;
+  year: number;
+  status: 'PENDING_APPROVAL' | 'REJECTED' | 'PUBLISHED';
+  createdAt: string;
+  rejectionReason?: string;
+}
+
 const AdminSchedules: React.FC = () => {
   const navigate = useNavigate();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [scheduleData, setScheduleData] = useState({ className: '', startDate: '', endDate: '' });
   const [summary, setSummary] = useState({ published: 0, classesCovered: 0, pending: 0 });
   const [classes, setClasses] = useState<ClassItem[]>([]);
+  const [requests, setRequests] = useState<ScheduleRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -39,11 +54,52 @@ const AdminSchedules: React.FC = () => {
     }
   };
 
+  const fetchRequests = async () => {
+    try {
+      const response = await api.get('/api/schedules/requests');
+      const data = response.data;
+      const payload = Array.isArray(data?.data) ? data.data : [];
+      setRequests(payload);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Erreur lors du chargement des demandes');
+    }
+  };
+
+  const reviewRequest = async (requestId: string, action: 'APPROVE' | 'REJECT') => {
+    try {
+      setError('');
+      const reason = action === 'REJECT' ? (window.prompt('Motif du refus:') || '').trim() : undefined;
+      if (action === 'REJECT' && !reason) {
+        setError('Le motif de refus est requis.');
+        return;
+      }
+
+      await api.patch(`/api/schedules/requests/${requestId}/review`, {
+        action,
+        reason
+      });
+
+      await Promise.all([fetchSummary(), fetchRequests()]);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Erreur lors du traitement de la demande');
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
     setError('');
-    Promise.all([fetchSummary(), fetchClasses()]).finally(() => setLoading(false));
+    Promise.all([fetchSummary(), fetchClasses(), fetchRequests()]).finally(() => setLoading(false));
   }, []);
+
+  const dayNames: Record<number, string> = {
+    1: 'Lundi',
+    2: 'Mardi',
+    3: 'Mercredi',
+    4: 'Jeudi',
+    5: 'Vendredi',
+    6: 'Samedi',
+    7: 'Dimanche'
+  };
 
   return (
     <div className="section">
@@ -162,6 +218,43 @@ const AdminSchedules: React.FC = () => {
               <p className="text-2xl font-bold text-[var(--color-text-primary)]">{summary.pending}</p>
               <p className="text-sm text-[var(--color-text-secondary)]">Horaires à valider</p>
             </div>
+          </div>
+
+          <div className="card p-5">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Demandes en attente</h3>
+            {requests.filter((item) => item.status === 'PENDING_APPROVAL').length === 0 ? (
+              <p className="text-sm text-[var(--color-text-secondary)]">Aucune demande en attente.</p>
+            ) : (
+              <div className="space-y-3">
+                {requests
+                  .filter((item) => item.status === 'PENDING_APPROVAL')
+                  .map((item) => (
+                    <div key={item.id} className="rounded-lg border border-[var(--color-border)] p-4">
+                      <p className="font-medium text-[var(--color-text-primary)]">Cours: {item.courseId}</p>
+                      <p className="text-sm text-[var(--color-text-secondary)]">
+                        {dayNames[item.dayOfWeek] || 'Jour'} • {item.startTime} - {item.endTime} • Salle {item.classroom}
+                      </p>
+                      <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                        Semestre {item.semester} - {item.year}
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => reviewRequest(item.id, 'APPROVE')}
+                          className="btn-primary text-sm"
+                        >
+                          Approuver
+                        </button>
+                        <button
+                          onClick={() => reviewRequest(item.id, 'REJECT')}
+                          className="btn-secondary text-sm"
+                        >
+                          Refuser
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

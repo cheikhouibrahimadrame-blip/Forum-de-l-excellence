@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
-import crypto from 'crypto';
+import prisma from '../lib/prisma';
 
 const router = Router();
 
@@ -21,15 +21,22 @@ type AcademicYear = {
   trimesters: Trimester[];
 };
 
-let academicYearsStore: AcademicYear[] = [];
-
 router.use(authenticate);
 
-router.get('/', (_req, res) => {
-  res.json({ success: true, data: academicYearsStore });
+router.get('/', async (_req, res) => {
+  try {
+    const years = await (prisma as any).academicYear.findMany({
+      include: { trimesters: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ success: true, data: years });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erreur lors du chargement des années scolaires' });
+  }
 });
 
-router.post('/', authorize(['ADMIN']), (req, res) => {
+router.post('/', authorize(['ADMIN']), async (req, res) => {
   const { year, startDate, endDate, isActive = false, trimesters = [] } = req.body;
 
   if (!year || !startDate || !endDate) {
@@ -37,72 +44,100 @@ router.post('/', authorize(['ADMIN']), (req, res) => {
     return;
   }
 
-  const newYear: AcademicYear = {
-    id: crypto.randomUUID(),
-    year,
-    startDate,
-    endDate,
-    isActive: Boolean(isActive),
-    trimesters: Array.isArray(trimesters) ? trimesters.map((t: any) => ({
-      id: t.id || crypto.randomUUID(),
-      name: t.name,
-      startDate: t.startDate,
-      endDate: t.endDate,
-      isActive: Boolean(t.isActive)
-    })) : []
-  };
+  try {
+    const createData: any = {
+      year: String(year),
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      isActive: Boolean(isActive)
+    };
 
-  if (newYear.isActive) {
-    academicYearsStore = academicYearsStore.map(item => ({ ...item, isActive: false }));
-  }
-
-  academicYearsStore = [newYear, ...academicYearsStore];
-  res.status(201).json({ success: true, data: newYear });
-});
-
-router.put('/:yearId', authorize(['ADMIN']), (req, res) => {
-  const { yearId } = req.params;
-  const index = academicYearsStore.findIndex(item => item.id === yearId);
-
-  if (index === -1) {
-    res.status(404).json({ success: false, error: 'Academic year not found' });
-    return;
-  }
-
-  const updated: AcademicYear = {
-    ...academicYearsStore[index],
-    ...req.body,
-    isActive: req.body.isActive != null ? Boolean(req.body.isActive) : academicYearsStore[index].isActive,
-    trimesters: Array.isArray(req.body.trimesters)
-      ? req.body.trimesters.map((t: any) => ({
-          id: t.id || crypto.randomUUID(),
-          name: t.name,
-          startDate: t.startDate,
-          endDate: t.endDate,
+    if (Array.isArray(trimesters) && trimesters.length > 0) {
+      createData.trimesters = {
+        create: trimesters.map((t: any) => ({
+          name: String(t.name),
+          startDate: new Date(t.startDate),
+          endDate: new Date(t.endDate),
           isActive: Boolean(t.isActive)
         }))
-      : academicYearsStore[index].trimesters
-  };
+      };
+    }
 
-  if (updated.isActive) {
-    academicYearsStore = academicYearsStore.map(item => ({ ...item, isActive: false }));
+    await prisma.$transaction(async (tx) => {
+      if (createData.isActive) {
+        await (tx as any).academicYear.updateMany({ where: {}, data: { isActive: false } });
+      }
+      const created = await (tx as any).academicYear.create({ data: createData, include: { trimesters: true } });
+      res.status(201).json({ success: true, data: created });
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erreur lors de la création de l année scolaire' });
   }
-
-  academicYearsStore[index] = updated;
-  res.json({ success: true, data: updated });
 });
 
-router.delete('/:yearId', authorize(['ADMIN']), (req, res) => {
+router.put('/:yearId', authorize(['ADMIN']), async (req, res) => {
   const { yearId } = req.params;
-  const existing = academicYearsStore.find(item => item.id === yearId);
 
-  if (!existing) {
-    res.status(404).json({ success: false, error: 'Academic year not found' });
-    return;
+  try {
+    const existing = await (prisma as any).academicYear.findUnique({ where: { id: yearId }, include: { trimesters: true } });
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Academic year not found' });
+      return;
+    }
+
+    const { year, startDate, endDate, isActive, trimesters } = req.body;
+
+    await prisma.$transaction(async (tx) => {
+      if (isActive) {
+        await (tx as any).academicYear.updateMany({ where: {}, data: { isActive: false } });
+      }
+
+      const updated = await (tx as any).academicYear.update({
+        where: { id: yearId },
+        data: {
+          year: year != null ? String(year) : undefined,
+          startDate: startDate != null ? new Date(startDate) : undefined,
+          endDate: endDate != null ? new Date(endDate) : undefined,
+          isActive: isActive != null ? Boolean(isActive) : undefined
+        }
+      });
+
+      if (Array.isArray(trimesters)) {
+        // Simplest approach: delete existing trimesters and recreate
+        await (tx as any).trimester.deleteMany({ where: { academicYearId: yearId } });
+        if (trimesters.length > 0) {
+          await (tx as any).trimester.createMany({ data: trimesters.map((t: any) => ({
+            academicYearId: yearId,
+            name: String(t.name),
+            startDate: new Date(t.startDate),
+            endDate: new Date(t.endDate),
+            isActive: Boolean(t.isActive)
+          })) });
+        }
+      }
+
+      const reloaded = await (tx as any).academicYear.findUnique({ where: { id: yearId }, include: { trimesters: true } });
+      res.json({ success: true, data: reloaded });
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erreur lors de la mise à jour de l année scolaire' });
   }
+});
 
-  academicYearsStore = academicYearsStore.filter(item => item.id !== yearId);
-  res.json({ success: true });
+router.delete('/:yearId', authorize(['ADMIN']), async (req, res) => {
+  const { yearId } = req.params;
+  try {
+    const existing = await prisma.academicYear.findUnique({ where: { id: yearId }, select: { id: true } });
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Academic year not found' });
+      return;
+    }
+
+    await prisma.academicYear.delete({ where: { id: yearId } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erreur lors de la suppression de l année scolaire' });
+  }
 });
 
 export default router;

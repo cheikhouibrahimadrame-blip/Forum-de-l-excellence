@@ -165,17 +165,6 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
       return;
     }
 
-    if (normalizedRole === 'TEACHER') {
-      const teacherProfile = await prisma.teacher.findUnique({ where: { userId: user.id } });
-      if (!teacherProfile) {
-        res.status(500).json({
-          success: false,
-          message: 'Data integrity error: Teacher profile missing'
-        });
-        return;
-      }
-    }
-
     req.user = {
       id: user.id,
       email: user.email,

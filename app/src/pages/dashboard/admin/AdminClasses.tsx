@@ -30,6 +30,13 @@ interface TeacherOption {
   name: string;
 }
 
+interface StudentOption {
+  id: string;
+  name: string;
+  email: string;
+  className: string;
+}
+
 const AdminClasses: React.FC = () => {
   const navigate = useNavigate();
   const [classes, setClasses] = useState<Class[]>([]);
@@ -37,11 +44,16 @@ const AdminClasses: React.FC = () => {
   const [error, setError] = useState('');
   const [academicYears, setAcademicYears] = useState<string[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [students, setStudents] = useState<StudentOption[]>([]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assigningClass, setAssigningClass] = useState<Class | null>(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [assignLoading, setAssignLoading] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -84,10 +96,11 @@ const AdminClasses: React.FC = () => {
       setLoading(true);
       setError('');
       try {
-        const [classesResponse, yearsResponse, teachersResponse] = await Promise.all([
+        const [classesResponse, yearsResponse, teachersResponse, studentsResponse] = await Promise.all([
           api.get('/api/classes', { signal: controller.signal }),
           api.get('/api/academic-years', { signal: controller.signal }),
-          api.get('/api/users', { params: { role: 'TEACHER', limit: 200 }, signal: controller.signal })
+          api.get('/api/users', { params: { role: 'TEACHER', limit: 200 }, signal: controller.signal }),
+          api.get('/api/users', { params: { role: 'STUDENT', limit: 400 }, signal: controller.signal })
         ]);
 
         const classData = classesResponse.data;
@@ -110,6 +123,19 @@ const AdminClasses: React.FC = () => {
           }))
           .filter((teacher: TeacherOption) => teacher.id && teacher.name);
         setTeachers(mappedTeachers);
+
+        const studentItems = Array.isArray(studentsResponse.data?.data?.users)
+          ? studentsResponse.data.data.users
+          : [];
+        const mappedStudents: StudentOption[] = studentItems
+          .map((student: any) => ({
+            id: String(student.id || ''),
+            name: [student.firstName, student.lastName].filter(Boolean).join(' ').trim() || student.email || '',
+            email: student.email || '',
+            className: student.student?.major || ''
+          }))
+          .filter((student: StudentOption) => student.id && student.name);
+        setStudents(mappedStudents);
       } catch (err: any) {
         const message = getReadableError(err, 'Erreur lors du chargement des classes');
         if (message) setError(message);
@@ -178,6 +204,65 @@ const AdminClasses: React.FC = () => {
     } catch (err: any) {
       const message = getReadableError(err, 'Erreur lors de la suppression de la classe');
       if (message) setError(message);
+    }
+  };
+
+  const handleOpenAssignStudents = (cls: Class) => {
+    if (!cls.mainTeacherId) {
+      setError('Veuillez d\'abord assigner un enseignant principal à cette classe.');
+      return;
+    }
+    setAssigningClass(cls);
+    const preselected = students
+      .filter((student) => student.className === cls.name)
+      .map((student) => student.id);
+    setSelectedStudentIds(preselected);
+    setShowAssignModal(true);
+  };
+
+  const toggleStudentSelection = (studentId: string) => {
+    setSelectedStudentIds((prev) => (
+      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
+    ));
+  };
+
+  const handleAssignStudents = async () => {
+    if (!assigningClass) return;
+    try {
+      setAssignLoading(true);
+      setError('');
+      const response = await api.post(`/api/classes/${assigningClass.id}/students/assign`, {
+        studentUserIds: selectedStudentIds
+      });
+
+      const currentStudents = Number(response.data?.data?.currentStudents || 0);
+      const assignedUserIds: string[] = Array.isArray(response.data?.data?.assignedUserIds)
+        ? response.data.data.assignedUserIds.map((id: any) => String(id))
+        : [];
+      const invalidUserIds: string[] = Array.isArray(response.data?.data?.invalidUserIds)
+        ? response.data.data.invalidUserIds.map((id: any) => String(id))
+        : [];
+
+      setClasses((prev) => prev.map((item) => item.id === assigningClass.id ? { ...item, currentStudents } : item));
+      setStudents((prev) => prev.map((student) => ({
+        ...student,
+        className: assignedUserIds.includes(student.id)
+          ? assigningClass.name
+          : (student.className === assigningClass.name ? '' : student.className)
+      })));
+
+      if (invalidUserIds.length > 0) {
+        setError(`${invalidUserIds.length} compte(s) étudiant sans profil élève ont été ignorés.`);
+      }
+
+      setShowAssignModal(false);
+      setAssigningClass(null);
+      setSelectedStudentIds([]);
+    } catch (err: any) {
+      const message = getReadableError(err, 'Erreur lors de l\'assignation des élèves');
+      if (message) setError(message);
+    } finally {
+      setAssignLoading(false);
     }
   };
 
@@ -435,6 +520,13 @@ const AdminClasses: React.FC = () => {
                       >
                         <Trash2 size={18} />
                       </button>
+                      <button
+                        onClick={() => handleOpenAssignStudents(cls)}
+                        className="p-2 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                        title="Assigner des élèves"
+                      >
+                        <Users size={18} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -582,6 +674,70 @@ const AdminClasses: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showAssignModal && assigningClass && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Assigner des élèves - {assigningClass.name}
+              </h2>
+              <button
+                onClick={() => setShowAssignModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Les élèves sélectionnés seront assignés à cette classe et visibles automatiquement sur le dashboard de l'enseignant principal.
+            </p>
+
+            <div className="max-h-80 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+              {students.length === 0 ? (
+                <div className="p-4 text-sm text-gray-500">Aucun élève disponible.</div>
+              ) : (
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {students.map((student) => (
+                    <label key={student.id} className="flex items-center justify-between gap-4 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">{student.name}</p>
+                        <p className="text-xs text-gray-500">{student.email}</p>
+                        <p className="text-xs text-gray-500">Classe actuelle: {student.className || 'Non assigné'}</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={selectedStudentIds.includes(student.id)}
+                        onChange={() => toggleStudentSelection(student.id)}
+                        className="h-4 w-4"
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowAssignModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleAssignStudents}
+                disabled={assignLoading}
+                className="flex-1 px-4 py-2 bg-primary-navy hover:bg-primary-navy/90 text-white rounded-lg transition-colors disabled:opacity-60"
+              >
+                {assignLoading ? 'Assignation...' : 'Enregistrer'}
+              </button>
+            </div>
           </div>
         </div>
       )}

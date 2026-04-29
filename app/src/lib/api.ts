@@ -43,7 +43,6 @@ const rejectPendingRequests = (error: any) => {
 export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  validateStatus: () => true, // Don't throw on any status
 });
 
 /**
@@ -62,13 +61,7 @@ api.interceptors.request.use((config) => {
  * Response Interceptor: Handle 401, refresh tokens, retry request
  */
 api.interceptors.response.use(
-  (response) => {
-    // Only return successful responses
-    if (response.status < 400) {
-      return response;
-    }
-    throw response;
-  },
+  (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     const status = error.response?.status;
@@ -118,7 +111,7 @@ api.interceptors.response.use(
       console.log('[AUTH] Refresh already in flight, queueing request');
     }
 
-    // Queue this request or replay if refresh completes
+    // Queue this request and replay it once refresh succeeds
     return new Promise((resolve, reject) => {
       refreshState.failedQueue.push({
         resolve: (token: string) => {
@@ -128,18 +121,6 @@ api.interceptors.response.use(
         },
         reject: (err) => reject(err)
       });
-
-      // Wait for refresh to complete, then process queue
-      refreshState.inFlight?.then(() => {
-        const token = getAccessToken();
-        if (token) {
-          originalRequest.headers = originalRequest.headers || {};
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          api(originalRequest).then(resolve).catch(reject);
-        } else {
-          reject(new Error('No token available after refresh'));
-        }
-      }).catch(reject);
     });
   }
 );

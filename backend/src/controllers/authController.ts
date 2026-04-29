@@ -55,6 +55,15 @@ export const changePasswordValidation = [
     .withMessage('Mot de passe actuel requis (minimum 8 caractères)')
 ];
 
+export const forgotPasswordValidation = [
+  body('email').isEmail().normalizeEmail().withMessage('Email invalide')
+];
+
+export const resetPasswordValidation = [
+  body('token').isString().isLength({ min: 32 }).withMessage('Token invalide'),
+  passwordPolicy
+];
+
 const hashToken = (token: string) => {
   return crypto.createHash('sha256').update(token).digest('hex');
 };
@@ -586,7 +595,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, email: true, role: true, isActive: true }
+      select: { id: true, email: true, role: true, isActive: true, tokenVersion: true }
     });
 
     if (!user || !user.isActive) {
@@ -688,6 +697,131 @@ export const logout = async (req: Request, res: Response) => {
   }
 };
 
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const { email } = req.body as { email: string };
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+
+    const genericMessage = 'Si l\'email existe, un lien de réinitialisation vous a été envoyé.';
+
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, isActive: true }
+    });
+
+    if (!user || !user.isActive) {
+      res.json({ success: true, message: genericMessage });
+      return;
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1h
+
+    await prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() }
+    });
+
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token: tokenHash,
+        expiresAt
+      }
+    });
+
+    await logAudit(prisma, {
+      userId: user.id,
+      action: 'PASSWORD_RESET_REQUESTED',
+      entity: 'AUTH'
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password?token=${rawToken}`;
+
+    logger.info({ userId: user.id, resetLink }, 'Password reset link generated');
+
+    res.json({
+      success: true,
+      message: genericMessage,
+      ...(process.env.NODE_ENV !== 'production' ? { data: { resetLink } } : {})
+    });
+  } catch (error) {
+    logger.error({ error }, 'Forgot password error');
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: 'Erreur serveur' });
+    }
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const { token, password } = req.body as { token: string; password: string };
+    const tokenHash = hashToken(String(token));
+
+    const resetRecord = await prisma.passwordResetToken.findUnique({
+      where: { token: tokenHash },
+      include: { user: true }
+    });
+
+    if (!resetRecord || resetRecord.usedAt || resetRecord.expiresAt < new Date()) {
+      res.status(400).json({ success: false, error: 'Lien de réinitialisation invalide ou expiré' });
+      return;
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: resetRecord.userId },
+        data: {
+          password: hashedPassword,
+          mustChangePassword: false,
+          tokenVersion: { increment: 1 }
+        } as any
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: resetRecord.id },
+        data: { usedAt: new Date() }
+      }),
+      prisma.refreshToken.deleteMany({ where: { userId: resetRecord.userId } }),
+      prisma.userSession.updateMany({
+        where: { userId: resetRecord.userId, revokedAt: null },
+        data: { revokedAt: new Date() }
+      })
+    ]);
+
+    await logAudit(prisma, {
+      userId: resetRecord.userId,
+      action: 'PASSWORD_RESET_COMPLETED',
+      entity: 'AUTH'
+    });
+
+    res.json({
+      success: true,
+      message: 'Mot de passe réinitialisé avec succès'
+    });
+  } catch (error) {
+    logger.error({ error }, 'Reset password error');
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: 'Erreur serveur' });
+    }
+  }
+};
+
 export const getMe = async (req: any, res: Response): Promise<void> => {
   try {
     const user = await prisma.user.findUnique({
@@ -700,7 +834,16 @@ export const getMe = async (req: any, res: Response): Promise<void> => {
               include: {
                 student: {
                   include: {
-                    user: true
+                    user: {
+                      select: {
+                        id: true,
+                        email: true,
+                        firstName: true,
+                        lastName: true,
+                        role: true,
+                        isActive: true
+                      }
+                    }
                   }
                 }
               }

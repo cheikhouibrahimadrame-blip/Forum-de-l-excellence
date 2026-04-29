@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, Eye, EyeOff } from 'lucide-react';
 import { api } from '../../lib/api';
+import { setAccessToken } from '../../lib/tokenService';
 
 const ChangePassword: React.FC = () => {
   const navigate = useNavigate();
@@ -62,21 +63,35 @@ const ChangePassword: React.FC = () => {
         password: newPassword
       });
       const data = response.data;
-
-      if (response.status >= 200 && response.status < 300) {
-        // Clear tokens and force re-login with the new password
-        // Access token is in memory; logout happens via interceptor if needed.
-        // Refresh token is httpOnly cookie; removal handled by backend logout if needed.
-        navigate('/login', { state: { message: 'Mot de passe modifié. Veuillez vous reconnecter.' } });
-      } else {
+      if (!data?.success) {
         setError(data?.error || 'Erreur lors du changement de mot de passe');
+        return;
       }
+
+      const newAccessToken = data?.data?.accessToken;
+      const role = data?.data?.user?.role;
+
+      if (newAccessToken) {
+        setAccessToken(newAccessToken);
+      }
+
+      const roleRoutes: Record<string, string> = {
+        ADMIN: '/admin',
+        TEACHER: '/teacher',
+        STUDENT: '/student',
+        PARENT: '/parent'
+      };
+
+      // Hard navigation reinitializes auth context with the fresh token/cookie state.
+      window.location.replace(roleRoutes[role] || '/login');
     } catch (err: any) {
-      if (err?.response?.status === 401) {
+      const status = err?.response?.status;
+      if (status === 401) {
         navigate('/login', { state: { message: 'Votre session a expiré. Veuillez vous reconnecter.' } });
         return;
       }
-      setError(err?.response?.data?.error || 'Erreur de connexion au serveur');
+      const msg = err?.response?.data?.error || err?.data?.error || 'Erreur de connexion au serveur';
+      setError(msg);
     } finally {
       setLoading(false);
     }

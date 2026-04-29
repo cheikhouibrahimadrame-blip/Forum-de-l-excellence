@@ -10,6 +10,7 @@ import {
   BookOpen,
   Hash,
   FileText,
+  Users,
   ChevronLeft
 } from 'lucide-react';
 import { api } from '../../../lib/api';
@@ -23,9 +24,18 @@ interface Subject {
   isActive: boolean;
 }
 
+interface ClassOption {
+  id: string;
+  name: string;
+  mainTeacherId?: string;
+  mainTeacher?: string;
+}
+
 const AdminSubjects: React.FC = () => {
   const navigate = useNavigate();
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [schoolYears, setSchoolYears] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -33,6 +43,10 @@ const AdminSubjects: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assigningSubject, setAssigningSubject] = useState<Subject | null>(null);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignForm, setAssignForm] = useState({ classroomId: '', schoolYear: '' });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -86,6 +100,15 @@ const AdminSubjects: React.FC = () => {
     setShowModal(true);
   };
 
+  const handleOpenAssign = (subject: Subject) => {
+    setAssigningSubject(subject);
+    setAssignForm({
+      classroomId: classes.find((item) => item.mainTeacherId)?.id || '',
+      schoolYear: schoolYears[0] || ''
+    });
+    setShowAssignModal(true);
+  };
+
   const handleDelete = (id: string) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cette matière ? Elle sera retirée de toutes les classes.')) {
       deleteSubject(id);
@@ -115,10 +138,33 @@ const AdminSubjects: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const response = await api.get('/api/subjects');
-      const data = response.data;
+
+      const [subjectsResponse, classesResponse, yearsResponse] = await Promise.all([
+        api.get('/api/subjects'),
+        api.get('/api/classes'),
+        api.get('/api/academic-years')
+      ]);
+
+      const data = subjectsResponse.data;
       const payload = Array.isArray(data) ? data : data.data || [];
       setSubjects(payload);
+
+      const classPayload = Array.isArray(classesResponse.data?.data) ? classesResponse.data.data : [];
+      setClasses(
+        classPayload
+          .map((item: any) => ({
+            id: String(item.id || ''),
+            name: String(item.name || ''),
+            mainTeacherId: item.mainTeacherId || '',
+            mainTeacher: item.mainTeacher || ''
+          }))
+          .filter((item: ClassOption) => item.id && item.name)
+      );
+
+      const yearsPayload = Array.isArray(yearsResponse.data?.data)
+        ? yearsResponse.data.data.map((item: { year?: string }) => item.year).filter(Boolean)
+        : [];
+      setSchoolYears(yearsPayload);
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors du chargement des matières');
     } finally {
@@ -150,6 +196,36 @@ const AdminSubjects: React.FC = () => {
       await fetchSubjects();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la suppression');
+    }
+  };
+
+  const handleAssignSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assigningSubject) return;
+
+    const selectedClass = classes.find((item) => item.id === assignForm.classroomId);
+    if (!selectedClass || !selectedClass.mainTeacherId || !selectedClass.mainTeacher) {
+      setError('Veuillez sélectionner une classe avec un enseignant principal assigné.');
+      return;
+    }
+
+    try {
+      setAssignLoading(true);
+      setError('');
+      await api.post(`/api/subjects/${assigningSubject.id}/assign`, {
+        classroomId: selectedClass.id,
+        classroomName: selectedClass.name,
+        teacherId: selectedClass.mainTeacherId,
+        teacherName: selectedClass.mainTeacher,
+        schoolYear: assignForm.schoolYear
+      });
+      setShowAssignModal(false);
+      setAssigningSubject(null);
+      setAssignForm({ classroomId: '', schoolYear: '' });
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Erreur lors de l’assignation de la matière');
+    } finally {
+      setAssignLoading(false);
     }
   };
 
@@ -317,6 +393,13 @@ const AdminSubjects: React.FC = () => {
                   <Pencil size={16} />
                 </button>
                 <button
+                  onClick={() => handleOpenAssign(subject)}
+                  className="p-1.5 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30 rounded transition-colors"
+                  title="Assigner"
+                >
+                  <Users size={16} />
+                </button>
+                <button
                   onClick={() => handleDelete(subject.id)}
                   className="p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded transition-colors"
                   title="Supprimer"
@@ -475,6 +558,82 @@ const AdminSubjects: React.FC = () => {
                            text-white rounded-lg transition-colors"
                 >
                   {editingSubject ? 'Mettre à jour' : 'Ajouter'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAssignModal && assigningSubject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Assigner la matière - {assigningSubject.name}
+              </h2>
+              <button
+                onClick={() => setShowAssignModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Classe *
+                </label>
+                <select
+                  value={assignForm.classroomId}
+                  onChange={(e) => setAssignForm((prev) => ({ ...prev, classroomId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-navy dark:focus:ring-primary-gold"
+                  required
+                >
+                  <option value="">Sélectionner une classe</option>
+                  {classes.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}{item.mainTeacher ? ` - ${item.mainTeacher}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  La matière sera reliée à l'enseignant principal de la classe.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Année scolaire *
+                </label>
+                <select
+                  value={assignForm.schoolYear}
+                  onChange={(e) => setAssignForm((prev) => ({ ...prev, schoolYear: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-navy dark:focus:ring-primary-gold"
+                  required
+                >
+                  <option value="">Sélectionner une année</option>
+                  {schoolYears.map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={assignLoading}
+                  className="flex-1 px-4 py-2 bg-primary-navy hover:bg-primary-navy/90 text-white rounded-lg transition-colors disabled:opacity-60"
+                >
+                  {assignLoading ? 'Assignation...' : 'Assigner'}
                 </button>
               </div>
             </form>

@@ -7,10 +7,16 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle,
-  Circle,
   Target,
-  Zap
+  Zap,
+  ArrowLeft,
+  Calendar,
+  Phone,
+  GraduationCap,
+  Sparkles,
+  Award
 } from 'lucide-react';
+import { LivingHero, LivingCTA, Reveal } from '../../components/public/living';
 
 const ProgramDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -220,69 +226,77 @@ const ProgramDetailPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      {/* Header */}
-      <section className="bg-gradient-to-r from-[var(--color-primary-navy)] to-[var(--color-primary-navy-dark)] py-12 section">
-        <div className="section-content">
-          <div className="flex gap-3 items-center mb-6">
+    <div className="min-h-screen overflow-x-hidden bg-[var(--color-bg-primary)]">
+      {/* ───────── Cinematic Living Hero ───────── */}
+      <LivingHero
+        eyebrow={`${program.level} · ${program.department}`}
+        title={program.title}
+        subtitle={program.description}
+        primary={{ label: "Demander des informations", to: "/admissions#contact", icon: <Calendar className="w-5 h-5" /> }}
+        secondary={{ label: "Tous les programmes", to: "/programmes", icon: <GraduationCap className="w-5 h-5" /> }}
+        trust={[
+          { icon: <Clock className="w-4 h-4" />, label: program.duration },
+          { icon: <Users className="w-4 h-4" />, label: `${program.credits} élèves max` },
+          { icon: <Sparkles className="w-4 h-4" />, label: program.department },
+        ]}
+        scrollCueTarget="detail"
+        minHeight="min(70vh, 640px)"
+      />
+
+      {/* Quick navigation row */}
+      <div className="border-b" style={{ borderColor: 'color-mix(in oklch, var(--oak-olive) 12%, transparent)', background: 'var(--color-bg-card)' }}>
+        <div className="section-content py-4 flex items-center justify-between gap-4 flex-wrap">
+          <button
+            onClick={() => navigate(-1)}
+            className="oak-magnetic-link inline-flex items-center gap-2 text-sm font-semibold"
+            style={{ color: 'var(--oak-olive)' }}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Retour aux programmes
+          </button>
+          <div className="flex gap-2 items-center">
             {prevProgram && (
               <button
                 onClick={() => navigate(`/programmes/${prevProgram.id}`)}
-                className="w-10 h-10 rounded-lg bg-[var(--color-primary-gold)] hover:bg-white flex items-center justify-center transition-colors duration-300"
-                title={`Retour à ${prevProgram.title}`}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: 'color-mix(in oklch, var(--oak-olive) 10%, white)',
+                  color: 'var(--oak-olive)',
+                  border: '1px solid color-mix(in oklch, var(--oak-olive) 22%, transparent)',
+                }}
+                title={`Précédent : ${prevProgram.title}`}
               >
-                <ChevronLeft className="w-5 h-5 text-[var(--color-primary-navy)]" />
+                <ChevronLeft className="w-4 h-4" />
+                Précédent
               </button>
             )}
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-[var(--color-primary-gold)] hover:text-white transition-colors"
-            >
-              <Circle className="w-5 h-5 fill-current" />
-              Retour aux programmes
-            </button>
-          </div>
-
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="inline-block mb-4 animate-slide-in-left">
-                <span className="badge bg-[var(--color-primary-gold)] text-[var(--color-primary-navy)]">
-                  {program.level}
-                </span>
-              </div>
-              <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 animate-slide-in-left animation-delay-100">
-                {program.title}
-              </h1>
-              <p className="text-lg text-[var(--color-primary-gold-light)] animate-slide-in-left animation-delay-200">
-                {program.department}
-              </p>
-            </div>
-            <div className="flex gap-3 items-center flex-shrink-0">
-              <div className="w-16 h-16 rounded-lg bg-[var(--color-primary-gold)] flex items-center justify-center animate-slide-in-right animation-delay-150">
-                <BookOpen className="w-8 h-8 text-[var(--color-primary-navy)]" />
-              </div>
-              {nextProgram && (
-                <button
-                  onClick={() => navigate(`/programmes/${nextProgram.id}`)}
-                  className="w-12 h-12 rounded-lg bg-[var(--color-primary-gold)] hover:bg-white flex items-center justify-center transition-colors duration-300"
-                  title={`Aller à ${nextProgram.title}`}
-                >
-                  <ChevronRight className="w-6 h-6 text-[var(--color-primary-navy)]" />
-                </button>
-              )}
-            </div>
+            {nextProgram && (
+              <button
+                onClick={() => navigate(`/programmes/${nextProgram.id}`)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white oak-shine"
+                style={{ background: 'var(--oak-olive)' }}
+                title={`Suivant : ${nextProgram.title}`}
+              >
+                Suivant
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
-      </section>
+      </div>
 
       {/* Content */}
-      <section className="py-16 section">
-        <div className="section-content">
+      <section id="detail" className="py-16 section relative overflow-hidden">
+        <div className="oak-blob oak-blob-chartreuse absolute opacity-25 -z-0"
+          style={{ width: 320, height: 320, top: '-8%', right: '-6%' }} />
+        <div className="oak-blob oak-blob-peach absolute opacity-20 -z-0"
+          style={{ width: 260, height: 260, bottom: '-6%', left: '-4%' }} />
+        <div className="section-content relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Content */}
             <div className="lg:col-span-2">
               {/* Overview */}
-              <div className="card mb-8">
+              <Reveal><div className="card oak-spotlight mb-8">
                 <div className="p-8">
                   <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-4">
                     À propos de ce programme
@@ -294,10 +308,10 @@ const ProgramDetailPage: React.FC = () => {
                     {program.teachingApproach}
                   </p>
                 </div>
-              </div>
+              </div></Reveal>
 
               {/* Objectives */}
-              <div className="card mb-8">
+              <Reveal delay={1}><div className="card oak-spotlight mb-8">
                 <div className="p-8">
                   <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-6 flex items-center gap-3">
                     <Target className="w-6 h-6 text-[var(--color-primary-navy)]" />
@@ -312,10 +326,10 @@ const ProgramDetailPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
-              </div>
+              </div></Reveal>
 
               {/* Curriculum */}
-              <div className="card">
+              <Reveal delay={2}><div className="card oak-spotlight">
                 <div className="p-8">
                   <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-6 flex items-center gap-3">
                     <Zap className="w-6 h-6 text-[var(--color-primary-navy)]" />
@@ -330,13 +344,13 @@ const ProgramDetailPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
-              </div>
+              </div></Reveal>
             </div>
 
             {/* Sidebar */}
             <div className="lg:col-span-1">
               {/* Key Info */}
-              <div className="card mb-8 sticky top-20">
+              <Reveal delay={1}><div className="card oak-spotlight oak-tilt mb-8 sticky top-20">
                 <div className="p-8">
                   <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-6">
                     Informations clés
@@ -392,19 +406,25 @@ const ProgramDetailPage: React.FC = () => {
                     </p>
                   </div>
                 </div>
-              </div>
-
-              {/* CTA */}
-              <button
-                onClick={() => navigate('/admissions#contact')}
-                className="w-full btn-primary py-3 text-lg font-medium"
-              >
-                Demander des informations
-              </button>
+              </div></Reveal>
             </div>
           </div>
         </div>
       </section>
+
+      {/* ───────── Living CTA ───────── */}
+      <LivingCTA
+        eyebrow="Inscriptions 2025–2026 ouvertes"
+        title={`Inscrivez votre enfant en ${program.level}`}
+        description="Notre équipe est à votre disposition pour répondre à vos questions et organiser une rencontre."
+        primary={{ label: "Demander des informations", to: "/admissions#contact", icon: <Calendar className="w-5 h-5" /> }}
+        secondary={{ label: "Nous appeler", to: "#", href: "tel:+221775368254", icon: <Phone className="w-5 h-5" /> }}
+        badges={[
+          { icon: <Award className="w-4 h-4" />, label: "Excellence reconnue" },
+          { icon: <BookOpen className="w-4 h-4" />, label: program.curriculum.length + ' matières' },
+          { icon: <Users className="w-4 h-4" />, label: `${program.credits} élèves max` },
+        ]}
+      />
     </div>
   );
 };

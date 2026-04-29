@@ -21,6 +21,8 @@ import CampusLifePage from './pages/public/CampusLifePage';
 // Auth Pages (kept eager — lightweight)
 import LoginPage from './pages/auth/LoginPage';
 import ChangePassword from './pages/auth/ChangePassword';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import ResetPassword from './pages/auth/ResetPassword';
 
 // =================================================================
 // Dashboard Pages — LAZY LOADED for code-splitting
@@ -91,7 +93,7 @@ const AdminPickup = lazy(() => import('./pages/dashboard/admin/AdminPickup'));
 // =================================================================
 
 const LoadingSpinner = () => (
-  <div className="min-h-screen flex items-center justify-center">
+  <div className="min-h-screen flex items-center justify-center" role="status" aria-label="Chargement en cours...">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-navy"></div>
   </div>
 );
@@ -101,18 +103,22 @@ const ProtectedRoute: React.FC<{ allowedRoles: string[]; children: React.ReactNo
   children
 }) => {
   const { user, loading } = useAuth();
+  const roleRoute = user ? `/${user.role.toLowerCase()}` : '/login';
 
   if (loading) return <LoadingSpinner />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.mustChangePassword) return <Navigate to="/change-password" replace />;
-  if (!allowedRoles.includes(user.role)) return <Navigate to="/" replace />;
+  if (!allowedRoles.includes(user.role)) return <Navigate to={roleRoute} replace />;
 
   return <>{children}</>;
 };
 
-const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { loading } = useAuth();
+const PublicRoute: React.FC<{ children: React.ReactNode; blockAuthenticated?: boolean }> = ({ children, blockAuthenticated = false }) => {
+  const { user, loading } = useAuth();
   if (loading) return <LoadingSpinner />;
+  if (blockAuthenticated && user) {
+    return <Navigate to={`/${user.role.toLowerCase()}`} replace />;
+  }
   return <>{children}</>;
 };
 
@@ -130,8 +136,10 @@ function AppContent() {
           <Route path="/campus-life" element={<PublicRoute><PublicLayout><CampusLifePage /></PublicLayout></PublicRoute>} />
 
           {/* Auth Routes */}
-          <Route path="/login" element={<AuthLayout><LoginPage /></AuthLayout>} />
-          <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/login" element={<PublicRoute blockAuthenticated={true}><AuthLayout><LoginPage /></AuthLayout></PublicRoute>} />
+          <Route path="/forgot-password" element={<PublicRoute><AuthLayout><ForgotPassword /></AuthLayout></PublicRoute>} />
+          <Route path="/reset-password" element={<PublicRoute><AuthLayout><ResetPassword /></AuthLayout></PublicRoute>} />
+          <Route path="/change-password" element={<ProtectedRoute allowedRoles={['STUDENT', 'PARENT', 'TEACHER', 'ADMIN']}><AuthLayout><ChangePassword /></AuthLayout></ProtectedRoute>} />
 
           {/* Student Dashboard */}
           <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><DashboardLayout><StudentDashboard /></DashboardLayout></ProtectedRoute>} />

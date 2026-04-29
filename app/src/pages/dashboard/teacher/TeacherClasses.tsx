@@ -45,9 +45,20 @@ const TeacherClasses: React.FC = () => {
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [showGradesModal, setShowGradesModal] = useState(false);
   const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementContent, setAnnouncementContent] = useState('');
+  const [announcementError, setAnnouncementError] = useState('');
+  const [announcementSuccess, setAnnouncementSuccess] = useState('');
+  const [announcementLoading, setAnnouncementLoading] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCapacity, setEditCapacity] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
   const [notesSummary, setNotesSummary] = useState<ClassNotesSummary | null>(null);
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesError, setNotesError] = useState('');
@@ -127,7 +138,42 @@ const TeacherClasses: React.FC = () => {
 
   const handleAnnouncements = () => {
     if (selectedClass) {
+      setAnnouncementTitle('');
+      setAnnouncementContent('');
+      setAnnouncementError('');
+      setAnnouncementSuccess('');
       setShowAnnouncementsModal(true);
+    }
+  };
+
+  const handlePublishAnnouncement = async () => {
+    if (!selectedClassData) return;
+
+    if (!announcementTitle.trim() || !announcementContent.trim()) {
+      setAnnouncementError('Veuillez renseigner un titre et un contenu.');
+      return;
+    }
+
+    try {
+      setAnnouncementLoading(true);
+      setAnnouncementError('');
+      setAnnouncementSuccess('');
+
+      const response = await api.post(`/api/classes/${selectedClassData.id}/announce`, {
+        title: announcementTitle.trim(),
+        content: announcementContent.trim()
+      });
+
+      const recipients = response.data?.data?.recipients;
+      setAnnouncementSuccess(
+        `Annonce publiée (${recipients?.total ?? 0} destinataires: ${recipients?.students ?? 0} élèves, ${recipients?.parents ?? 0} parents).`
+      );
+      setAnnouncementContent('');
+    } catch (err: any) {
+      const message = getReadableError(err, 'Erreur lors de la publication de l\'annonce');
+      if (message) setAnnouncementError(message);
+    } finally {
+      setAnnouncementLoading(false);
     }
   };
 
@@ -139,7 +185,41 @@ const TeacherClasses: React.FC = () => {
 
   const handleEditClass = () => {
     if (selectedClass) {
-      alert('Édition de la classe: ' + selectedClassData?.name);
+      setEditTitle(selectedClassData?.name || '');
+      setEditCapacity(String(selectedClassData?.students ?? ''));
+      setEditError('');
+      setEditSuccess('');
+      setShowEditModal(true);
+    }
+  };
+
+  const handleSaveClass = async () => {
+    if (!selectedClassData) return;
+
+    const capacityValue = Number(editCapacity);
+    if (!editTitle.trim() || !Number.isFinite(capacityValue) || capacityValue <= 0) {
+      setEditError('Veuillez renseigner un nom de classe et une capacité valide.');
+      return;
+    }
+
+    try {
+      setEditLoading(true);
+      setEditError('');
+      setEditSuccess('');
+
+      await api.put(`/api/classes/${selectedClassData.id}`, {
+        name: editTitle.trim(),
+        capacity: capacityValue
+      });
+
+      setEditSuccess('Informations générales de la classe mises à jour.');
+      setShowEditModal(false);
+      setClasses((prev) => prev.map((item) => item.id === selectedClassData.id ? { ...item, name: editTitle.trim(), students: item.students } : item));
+    } catch (err: any) {
+      const message = getReadableError(err, 'Erreur lors de la mise à jour de la classe');
+      if (message) setEditError(message);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -479,28 +559,107 @@ const TeacherClasses: React.FC = () => {
               </button>
             </div>
             <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Titre de l'annonce"
+                value={announcementTitle}
+                onChange={(e) => setAnnouncementTitle(e.target.value)}
+                className="input-field w-full"
+              />
               <textarea 
                 placeholder="Nouvelle annonce..."
+                value={announcementContent}
+                onChange={(e) => setAnnouncementContent(e.target.value)}
                 className="input-field w-full h-24"
               />
+              {announcementError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {announcementError}
+                </div>
+              )}
+              {announcementSuccess && (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                  {announcementSuccess}
+                </div>
+              )}
               <div className="space-y-3">
                 <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg">
-                  <p className="font-semibold text-[var(--color-text-primary)] mb-1">Annonce 1</p>
-                  <p className="text-sm text-[var(--color-text-secondary)]">Prochain devoir: mardi</p>
-                </div>
-                <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg">
-                  <p className="font-semibold text-[var(--color-text-primary)] mb-1">Annonce 2</p>
-                  <p className="text-sm text-[var(--color-text-secondary)]">Révision avant l'examen</p>
+                  <p className="font-semibold text-[var(--color-text-primary)] mb-1">Diffusion automatique</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">La publication notifie les élèves de la classe et leurs parents liés.</p>
                 </div>
               </div>
               <div className="flex gap-3">
-                <button className="flex-1 btn-primary">
-                  Publier
+                <button
+                  onClick={handlePublishAnnouncement}
+                  disabled={announcementLoading}
+                  className="flex-1 btn-primary disabled:opacity-60"
+                >
+                  {announcementLoading ? 'Publication...' : 'Publier'}
                 </button>
                 <button 
                   onClick={() => setShowAnnouncementsModal(false)}
                   className="flex-1 btn-secondary">
                   Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && selectedClassData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="card p-6 w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">
+                Modifier la Classe
+              </h2>
+              <button 
+                onClick={() => setShowEditModal(false)}
+                className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Nom de classe</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="Nom de la classe"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Capacité</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editCapacity}
+                  onChange={(e) => setEditCapacity(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="Capacité"
+                />
+              </div>
+              <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg text-sm text-[var(--color-text-secondary)] space-y-1">
+                <p>Non modifiable ici: niveau, semestre, année scolaire, affectation enseignant principal.</p>
+                <p>Seules les informations générales de la classe sont autorisées pour le professeur.</p>
+              </div>
+              {editError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{editError}</div>
+              )}
+              {editSuccess && (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{editSuccess}</div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button className="flex-1 btn-primary disabled:opacity-60" onClick={handleSaveClass} disabled={editLoading}>
+                  {editLoading ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+                <button className="flex-1 btn-secondary" onClick={() => setShowEditModal(false)}>
+                  Annuler
                 </button>
               </div>
             </div>

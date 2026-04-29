@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
 import prisma from '../lib/prisma';
-import crypto from 'crypto';
 
 const router = Router();
 
-let classesStore: Array<{
+type ClassItem = {
   id: string;
   name: string;
   level: string;
@@ -14,26 +13,159 @@ let classesStore: Array<{
   academicYear: string;
   mainTeacherId?: string;
   mainTeacher?: string;
-}> = [];
+};
 
 router.use(authenticate);
 
-router.get('/', (req: any, res) => {
+router.get('/', async (req: any, res) => {
   const userRole = req.user?.role;
   const userId = req.user?.id;
 
-  if (userRole === 'TEACHER' && userId) {
-    const filtered = classesStore.filter((item) => item.mainTeacherId === userId);
-    res.json({ success: true, data: filtered });
+  try {
+    if (userRole === 'TEACHER' && userId) {
+        const classes = await (prisma as any).class.findMany({ where: { mainTeacherId: userId }, orderBy: { name: 'asc' } });
+      const mapped: ClassItem[] = [];
+      for (const c of classes) {
+        const currentStudents = await prisma.student.count({ where: { major: c.name } });
+        mapped.push({
+          id: c.id,
+          name: c.name,
+          level: c.level || '',
+          capacity: c.capacity || 0,
+          currentStudents,
+          academicYear: c.academicYearId || '',
+          mainTeacherId: c.mainTeacherId || undefined,
+          mainTeacher: ''
+        });
+      }
+      res.json({ success: true, data: mapped });
+      return;
+    }
+
+      const classes = await (prisma as any).class.findMany({ orderBy: { name: 'asc' } });
+    const mapped: ClassItem[] = [];
+    for (const c of classes) {
+      const currentStudents = await prisma.student.count({ where: { major: c.name } });
+      mapped.push({
+        id: c.id,
+        name: c.name,
+        level: c.level || '',
+        capacity: c.capacity || 0,
+        currentStudents,
+        academicYear: c.academicYearId || '',
+        mainTeacherId: c.mainTeacherId || undefined,
+        mainTeacher: ''
+      });
+    }
+    res.json({ success: true, data: mapped });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erreur lors du chargement des classes' });
+  }
+});
+
+router.get('/teacher/students', async (req: any, res) => {
+  const userRole = req.user?.role;
+  const userId = req.user?.id;
+
+  if (userRole !== 'TEACHER') {
+    res.status(403).json({ success: false, error: 'Acces reserve aux enseignants' });
     return;
   }
 
-  res.json({ success: true, data: classesStore });
+  try {
+      const assignedClasses = await (prisma as any).class.findMany({ where: { mainTeacherId: userId } });
+    if (assignedClasses.length === 0) {
+      res.json({ success: true, data: { students: [], classes: [] } });
+      return;
+    }
+
+    const classNames = assignedClasses.map((item: any) => item.name);
+
+    const students = await prisma.student.findMany({
+      where: { major: { in: classNames } },
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, isActive: true } } },
+      orderBy: { user: { lastName: 'asc' } }
+    });
+
+    const payload = students.filter((s) => !!s.user).map((student) => ({
+      id: student.user.id,
+      firstName: student.user.firstName,
+      lastName: student.user.lastName,
+      email: student.user.email,
+      phone: student.user.phone || '',
+      className: student.major || '',
+      level: String(student.status || ''),
+      average: student.gpa != null ? Number(student.gpa) : null,
+      attendance: null,
+      isActive: student.user.isActive
+    }));
+
+    const assignedClassesPayload = assignedClasses.map((c: any) => ({ id: c.id, name: c.name }));
+    res.json({ success: true, data: { students: payload, classes: assignedClassesPayload } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erreur lors du chargement des eleves' });
+  }
+});
+
+router.post('/:classId/students/assign', authorize(['ADMIN']), async (req: any, res) => {
+  const { classId } = req.params;
+  const studentUserIds: string[] = Array.isArray(req.body?.studentUserIds)
+    ? req.body.studentUserIds.map((id: unknown) => String(id ?? '').trim()).filter((id: string) => id.length > 0)
+    : [];
+
+  const classItem = await prisma.class.findUnique({ where: { id: classId } });
+  if (!classItem) {
+    res.status(404).json({ success: false, error: 'Classe introuvable' });
+    return;
+  }
+
+  if (studentUserIds.length === 0) {
+    const currentClassStudentCount = await prisma.student.count({ where: { major: classItem.name } });
+    res.json({ success: true, data: { assignedCount: 0, classId, currentStudents: currentClassStudentCount } });
+    return;
+  }
+
+  const uniqueValidUserIds = Array.from(new Set<string>(studentUserIds));
+
+  const selectedStudentUsers = await prisma.user.findMany({ where: { id: { in: uniqueValidUserIds }, role: 'STUDENT' }, select: { id: true } });
+  const selectedStudentUserIds = selectedStudentUsers.map((u) => u.id);
+
+  if (selectedStudentUserIds.length > 0) {
+    const existingProfiles = await prisma.student.findMany({ where: { userId: { in: selectedStudentUserIds } }, select: { userId: true } });
+    const existingUserIds = new Set(existingProfiles.map((p) => p.userId));
+    const missingProfileUserIds = selectedStudentUserIds.filter((userId) => !existingUserIds.has(userId));
+
+    for (const userId of missingProfileUserIds) {
+      const compactUserId = userId.replace(/-/g, '');
+      const generatedStudentId = `STU-${compactUserId.slice(0, 10)}${compactUserId.slice(-6)}`;
+      try {
+        await prisma.student.create({ data: { userId, studentId: generatedStudentId, dateOfBirth: new Date(), enrollmentDate: new Date() } });
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const studentsToAssign = await prisma.student.findMany({ where: { userId: { in: selectedStudentUserIds } }, select: { id: true, userId: true } });
+  const assignedUserIds = studentsToAssign.map((s) => s.userId);
+  const invalidUserIds = uniqueValidUserIds.filter((id: string) => !assignedUserIds.includes(id));
+
+  if (studentsToAssign.length === 0) {
+    const currentClassStudentCount = await prisma.student.count({ where: { major: classItem.name } });
+    res.json({ success: true, data: { classId, className: classItem.name, assignedCount: 0, assignedUserIds: [], invalidUserIds, currentStudents: currentClassStudentCount } });
+    return;
+  }
+
+    await (prisma as any).student.updateMany({ where: { id: { in: studentsToAssign.map((s) => s.id) } }, data: { major: classItem.name } });
+
+  const currentClassStudentCount = await prisma.student.count({ where: { major: classItem.name } });
+
+  res.json({ success: true, data: { classId, className: classItem.name, assignedCount: studentsToAssign.length, assignedUserIds, invalidUserIds, currentStudents: currentClassStudentCount } });
 });
 
 router.get('/:classId/notes-summary', async (req: any, res) => {
   const { classId } = req.params;
-  const classItem = classesStore.find((item) => item.id === classId);
+  const classItem = await prisma.class.findUnique({ where: { id: classId } });
 
   if (!classItem) {
     res.status(404).json({ success: false, error: 'Class not found' });
@@ -53,14 +185,7 @@ router.get('/:classId/notes-summary', async (req: any, res) => {
     return;
   }
 
-  const teacherProfile = await prisma.teacher.findUnique({
-    where: { userId: classItem.mainTeacherId },
-    include: {
-      user: {
-        select: { firstName: true, lastName: true, email: true }
-      }
-    }
-  });
+  const teacherProfile = await prisma.teacher.findUnique({ where: { userId: classItem.mainTeacherId }, include: { user: { select: { firstName: true, lastName: true, email: true } } } });
 
   if (!teacherProfile) {
     res.status(404).json({ success: false, error: 'Profil enseignant introuvable' });
@@ -151,8 +276,8 @@ router.get('/:classId/notes-summary', async (req: any, res) => {
     data: {
       classId: classItem.id,
       className: classItem.name,
-      teacherName: teacherProfile.user ? `${teacherProfile.user.firstName} ${teacherProfile.user.lastName}` : classItem.mainTeacher,
-      academicYear: classItem.academicYear,
+      teacherName: teacherProfile.user ? `${teacherProfile.user.firstName} ${teacherProfile.user.lastName}` : '',
+      academicYear: classItem.academicYearId || '',
       average,
       mastery,
       trend,
@@ -167,6 +292,94 @@ router.get('/:classId/notes-summary', async (req: any, res) => {
       remark: grades.length > 0
         ? `Synthèse réelle basée sur ${grades.length} note(s) enregistrée(s) dans ${courses.length} cours.`
         : 'Aucune note disponible pour cette classe pour le moment.'
+    }
+  });
+});
+
+router.post('/:classId/announce', authorize(['TEACHER', 'ADMIN']), async (req: any, res) => {
+  const { classId } = req.params;
+  const { title, content } = req.body || {};
+
+  if (!title || !String(title).trim() || !content || !String(content).trim()) {
+    res.status(400).json({ success: false, error: 'Titre et contenu requis' });
+    return;
+  }
+
+  const classItem = await prisma.class.findUnique({ where: { id: classId } });
+  if (!classItem) {
+    res.status(404).json({ success: false, error: 'Classe introuvable' });
+    return;
+  }
+
+  const userRole = req.user?.role;
+  const userId = req.user?.id;
+
+  if (userRole === 'TEACHER' && classItem.mainTeacherId !== userId) {
+    res.status(403).json({ success: false, error: 'Acces refuse pour cette classe' });
+    return;
+  }
+
+  const students = await prisma.student.findMany({
+    where: {
+      major: classItem.name
+    },
+    select: {
+      id: true,
+      userId: true,
+      user: {
+        select: {
+          firstName: true,
+          lastName: true
+        }
+      },
+      parentStudents: {
+        include: {
+          parent: {
+            select: {
+              userId: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const studentMessages = students
+    .filter((student) => !!student.userId)
+    .map((student) => ({
+      senderId: userId,
+      receiverId: student.userId,
+      subject: `[Annonce ${classItem.name}] ${String(title).trim()}`,
+      content: String(content).trim()
+    }));
+
+  const parentMessages = students.flatMap((student) => {
+    const childName = [student.user?.firstName, student.user?.lastName].filter(Boolean).join(' ').trim();
+    return student.parentStudents
+      .filter((link) => !!link.parent?.userId)
+      .map((link) => ({
+        senderId: userId,
+        receiverId: link.parent!.userId,
+        subject: `[Annonce ${classItem.name}] ${String(title).trim()}`,
+        content: `${String(content).trim()}\n\nEnfant concerné: ${childName || 'N/A'} • Classe: ${classItem.name}`
+      }));
+  });
+
+  const allMessages = [...studentMessages, ...parentMessages];
+  if (allMessages.length > 0) {
+    await prisma.message.createMany({ data: allMessages });
+  }
+
+  res.status(201).json({
+    success: true,
+    data: {
+      classId,
+      title: String(title).trim(),
+      recipients: {
+        students: studentMessages.length,
+        parents: parentMessages.length,
+        total: allMessages.length
+      }
     }
   });
 });
@@ -187,98 +400,127 @@ router.post('/', authorize(['ADMIN']), async (req, res) => {
     return;
   }
 
-  let resolvedTeacherName = mainTeacher;
+  // Verify teacher assignment uniqueness and teacher validity
   if (mainTeacherId) {
-    const existingAssignment = classesStore.find((item) => item.mainTeacherId === mainTeacherId);
+    const existingAssignment = await prisma.class.findFirst({ where: { mainTeacherId } });
     if (existingAssignment) {
       res.status(400).json({ success: false, error: 'Cet enseignant est deja assigne a une autre classe' });
       return;
     }
 
-    const teacherUser = await prisma.user.findUnique({
-      where: { id: mainTeacherId },
-      select: { id: true, role: true, firstName: true, lastName: true }
-    });
+    const teacherUser = await prisma.user.findUnique({ where: { id: mainTeacherId }, select: { id: true, role: true, firstName: true, lastName: true } });
     if (!teacherUser || teacherUser.role !== 'TEACHER') {
       res.status(400).json({ success: false, error: 'Enseignant principal invalide' });
       return;
     }
-    resolvedTeacherName = [teacherUser.firstName, teacherUser.lastName].filter(Boolean).join(' ').trim();
   }
 
-  const newClass = {
-    id: crypto.randomUUID(),
-    name,
-    level,
-    capacity: Number(capacity) || 0,
-    currentStudents: Number(currentStudents) || 0,
-    academicYear,
-    mainTeacherId,
-    mainTeacher: resolvedTeacherName
-  };
+  try {
+      const created = await (prisma as any).class.create({ data: {
+      name: String(name).trim(),
+      level: String(level),
+      capacity: capacity != null ? Number(capacity) : 0,
+      mainTeacherId: mainTeacherId || null,
+      academicYearId: academicYear || null
+    } });
 
-  classesStore = [newClass, ...classesStore];
-  res.status(201).json({ success: true, data: newClass });
+    res.status(201).json({ success: true, data: {
+      id: created.id,
+      name: created.name,
+      level: created.level || '',
+      capacity: created.capacity || 0,
+      currentStudents: await prisma.student.count({ where: { major: created.name } }),
+      academicYear: created.academicYearId || '',
+      mainTeacherId: created.mainTeacherId || undefined,
+      mainTeacher: ''
+    } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erreur lors de la creation de la classe' });
+  }
 });
 
-router.put('/:classId', authorize(['ADMIN']), async (req, res) => {
+router.put('/:classId', authorize(['TEACHER', 'ADMIN']), async (req: any, res) => {
   const { classId } = req.params;
-  const index = classesStore.findIndex(item => item.id === classId);
+  const isTeacher = req.user?.role === 'TEACHER';
 
-  if (index === -1) {
+  const existingClass = await prisma.class.findUnique({ where: { id: classId } });
+  if (!existingClass) {
     res.status(404).json({ success: false, error: 'Class not found' });
+    return;
+  }
+
+  if (isTeacher && existingClass.mainTeacherId !== req.user?.id) {
+    res.status(403).json({ success: false, error: 'Acces refuse pour cette classe' });
     return;
   }
 
   const incomingTeacherId = req.body.mainTeacherId;
-  let resolvedTeacherName = req.body.mainTeacher;
+
+  if (isTeacher) {
+    const allowedKeys = ['name', 'capacity'];
+    const forbiddenKeys = ['level', 'academicYear', 'mainTeacherId', 'mainTeacher', 'currentStudents'];
+    const hasForbidden = forbiddenKeys.some((key) => req.body[key] !== undefined);
+    if (hasForbidden) {
+      res.status(403).json({ success: false, error: 'Les enseignants ne peuvent modifier que les informations générales de la classe' });
+      return;
+    }
+
+      const updated = await (prisma as any).class.update({ where: { id: classId }, data: { name: req.body.name !== undefined ? String(req.body.name).trim() : existingClass.name, capacity: req.body.capacity != null ? Number(req.body.capacity) : existingClass.capacity } });
+    res.json({ success: true, data: { id: updated.id, name: updated.name, level: updated.level || '', capacity: updated.capacity || 0, currentStudents: await prisma.student.count({ where: { major: updated.name } }), academicYear: updated.academicYearId || '', mainTeacherId: updated.mainTeacherId || undefined, mainTeacher: '' } });
+    return;
+  }
 
   if (incomingTeacherId) {
-    const existingAssignment = classesStore.find((item) => item.id !== classId && item.mainTeacherId === incomingTeacherId);
+    const existingAssignment = await prisma.class.findFirst({ where: { mainTeacherId: incomingTeacherId, NOT: { id: classId } } as any });
     if (existingAssignment) {
       res.status(400).json({ success: false, error: 'Cet enseignant est deja assigne a une autre classe' });
       return;
     }
 
-    const teacherUser = await prisma.user.findUnique({
-      where: { id: incomingTeacherId },
-      select: { id: true, role: true, firstName: true, lastName: true }
-    });
+    const teacherUser = await prisma.user.findUnique({ where: { id: incomingTeacherId }, select: { id: true, role: true, firstName: true, lastName: true } });
     if (!teacherUser || teacherUser.role !== 'TEACHER') {
       res.status(400).json({ success: false, error: 'Enseignant principal invalide' });
       return;
     }
-    resolvedTeacherName = [teacherUser.firstName, teacherUser.lastName].filter(Boolean).join(' ').trim();
   }
 
-  if (incomingTeacherId === '') {
-    resolvedTeacherName = '';
+  try {
+    const dataToUpdate: any = {};
+    if (req.body.name !== undefined) dataToUpdate.name = String(req.body.name).trim();
+    if (req.body.level !== undefined) dataToUpdate.level = String(req.body.level);
+    if (req.body.capacity !== undefined) dataToUpdate.capacity = Number(req.body.capacity);
+    if (req.body.currentStudents !== undefined) {
+      // currentStudents is derived from students; ignore direct set
+    }
+    if (incomingTeacherId !== undefined) {
+      dataToUpdate.mainTeacherId = incomingTeacherId === '' ? null : incomingTeacherId;
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      res.json({ success: true, data: existingClass });
+      return;
+    }
+
+      const updated = await (prisma as any).class.update({ where: { id: classId }, data: dataToUpdate });
+    res.json({ success: true, data: { id: updated.id, name: updated.name, level: updated.level || '', capacity: updated.capacity || 0, currentStudents: await prisma.student.count({ where: { major: updated.name } }), academicYear: updated.academicYearId || '', mainTeacherId: updated.mainTeacherId || undefined, mainTeacher: '' } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erreur lors de la mise a jour de la classe' });
   }
-
-  const updated = {
-    ...classesStore[index],
-    ...req.body,
-    capacity: req.body.capacity != null ? Number(req.body.capacity) : classesStore[index].capacity,
-    currentStudents: req.body.currentStudents != null ? Number(req.body.currentStudents) : classesStore[index].currentStudents,
-    mainTeacherId: incomingTeacherId === '' ? '' : (incomingTeacherId ?? classesStore[index].mainTeacherId),
-    mainTeacher: resolvedTeacherName ?? classesStore[index].mainTeacher
-  };
-
-  classesStore[index] = updated;
-  res.json({ success: true, data: updated });
 });
 
-router.delete('/:classId', authorize(['ADMIN']), (req, res) => {
+router.delete('/:classId', authorize(['ADMIN']), async (req, res) => {
   const { classId } = req.params;
-  const existing = classesStore.find(item => item.id === classId);
-
-  if (!existing) {
-    res.status(404).json({ success: false, error: 'Class not found' });
-    return;
+  try {
+    const existing = await prisma.class.findUnique({ where: { id: classId }, select: { id: true } });
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Class not found' });
+      return;
+    }
+      await (prisma as any).class.delete({ where: { id: classId } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erreur lors de la suppression de la classe' });
   }
-
-  classesStore = classesStore.filter(item => item.id !== classId);
-  res.json({ success: true });
 });
 
 export default router;

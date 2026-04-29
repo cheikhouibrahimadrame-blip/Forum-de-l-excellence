@@ -1,0 +1,18 @@
+[
+  {
+    "id": "b8420c04-feab-462f-b20e-6bf423d907d4",
+    "year": "2025-2026",
+    "startDate": "2025-08-14",
+    "endDate": "2026-08-14",
+    "isActive": false,
+    "trimesters": []
+  },
+  {
+    "id": "05497237-340e-48c4-9058-d0552b45e90b",
+    "year": "2025-2026",
+    "startDate": "2025-08-14",
+    "endDate": "2026-08-14",
+    "isActive": false,
+    "trimesters": []
+  }
+]
