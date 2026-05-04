@@ -2,6 +2,7 @@ import express from 'express';
 import { 
   createHomework,
   createHomeworkValidation,
+  updateHomework,
   submitHomework,
   getHomeworks,
   getSubmissions,
@@ -53,6 +54,13 @@ router.put(
   '/submission/:submissionId/grade',
   authorize(['TEACHER', 'ADMIN']),
   gradeSubmission
+);
+
+// Update homework (TEACHER/ADMIN only)
+router.put(
+  '/:homeworkId',
+  authorize(['TEACHER', 'ADMIN']),
+  updateHomework
 );
 
 // Delete homework (ADMIN only)

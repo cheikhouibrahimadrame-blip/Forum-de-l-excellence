@@ -2,7 +2,10 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
+import { logger } from '../../../lib/logger';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 import { 
   Users,
@@ -43,13 +46,14 @@ interface LinkedStudent {
 
 const ParentDashboard: React.FC = () => {
   const { user, loading } = useAuth();
+  const { branding } = useBranding();
   const location = useLocation();
   const refreshTick = useLiveRefresh(15000);
   const [linkedStudents, setLinkedStudents] = useState<LinkedStudent[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(true);
 
   useEffect(() => {
-    console.log('[ParentDashboard] auth state:', {
+    logger.log('[ParentDashboard] auth state:', {
       userId: user?.id,
       role: user?.role,
       loading
@@ -58,10 +62,10 @@ const ParentDashboard: React.FC = () => {
     // Fetch linked students
     const fetchLinkedStudents = async () => {
       try {
-        const response = await api.get('/api/parent-students/my-students');
+        const response = await api.get(API.PARENT_STUDENTS_MY);
         const data = response.data;
 
-        console.log('[ParentDashboard] my-students status:', response.status);
+        logger.log('[ParentDashboard] my-students status:', response.status);
 
         if (data.success && data.data.students) {
           setLinkedStudents(data.data.students);
@@ -143,7 +147,7 @@ const ParentDashboard: React.FC = () => {
             </div>
 
             <div className="oak-hero-banner w-full lg:w-[38%]">
-              <img src="/campus-hero.png" alt="Campus" className="absolute inset-0 w-full h-full object-cover" />
+              <img src={branding.brand.heroBannerUrl} alt={branding.brand.name} className="absolute inset-0 w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
               <div className="absolute bottom-4 left-4 right-4 text-white">
                 <div className="text-sm/5 opacity-90">Bonjour {user?.firstName}</div>

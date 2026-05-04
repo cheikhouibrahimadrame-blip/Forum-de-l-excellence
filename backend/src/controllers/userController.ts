@@ -22,6 +22,15 @@ const passwordPolicy = body('password')
   .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
   .withMessage('Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre');
 
+// P0-3: dedicated validator for the admin reset-password endpoint, which
+// reads `newPassword` (not `password`). Before this fix the existing
+// passwordPolicy ran against the wrong field and silently accepted any value.
+const newPasswordPolicy = body('newPassword')
+  .isLength({ min: 8 })
+  .withMessage('Nouveau mot de passe requis (minimum 8 caractères)')
+  .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+  .withMessage('Le nouveau mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre');
+
 export const createUserValidation = [
   body('email').isEmail().normalizeEmail().withMessage('Email invalide'),
   passwordPolicy,
@@ -39,6 +48,12 @@ export const getUsers = async (req: AuthenticatedRequest, res: Response) => {
 
     if (role) {
       where.role = role;
+    }
+
+    // P1-10: teachers may only list students. They previously could enumerate
+    // every account (including admins) with their email/phone exposed.
+    if (req.user?.role === 'TEACHER') {
+      where.role = 'STUDENT';
     }
 
     if (status === 'active') where.isActive = true;
@@ -70,6 +85,7 @@ export const getUsers = async (req: AuthenticatedRequest, res: Response) => {
           createdAt: true,
           student: {
             select: {
+              id: true,
               studentId: true,
               major: true,
               gpa: true,
@@ -78,17 +94,20 @@ export const getUsers = async (req: AuthenticatedRequest, res: Response) => {
           },
           parent: {
             select: {
+              id: true,
               relationship: true
             }
           },
           teacher: {
             select: {
+              id: true,
               employeeId: true,
               specialization: true
             }
           },
           admin: {
             select: {
+              id: true,
               employeeId: true,
               department: true
             }
@@ -151,6 +170,12 @@ export const createUser = async (req: AuthenticatedRequest, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // P1-9: every role must end up with the matching profile row. Without
+    // this, a freshly-created STUDENT/PARENT/ADMIN had no profile and every
+    // role-specific endpoint returned 404 ("Étudiant non trouvé" etc.).
+    // Placeholder defaults (mirroring parentStudentController.ts) keep the
+    // admin "Add user" UX one-click; the dedicated profile editors fill in
+    // the real values later.
     const user = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
@@ -176,15 +201,51 @@ export const createUser = async (req: AuthenticatedRequest, res: Response) => {
         }
       });
 
-      if (role === 'TEACHER') {
-        await tx.teacher.create({
-          data: {
-            userId: createdUser.id,
-            employeeId: `TCH-${crypto.randomUUID().slice(0, 8)}`,
-            hireDate: new Date(),
-            qualifications: []
-          }
-        });
+      const today = new Date();
+      const shortUid = createdUser.id.replace(/-/g, '').slice(0, 12);
+
+      switch (role) {
+        case 'TEACHER':
+          await tx.teacher.create({
+            data: {
+              userId: createdUser.id,
+              employeeId: `TCH-${shortUid}`,
+              hireDate: today,
+              qualifications: []
+            }
+          });
+          break;
+
+        case 'STUDENT':
+          await tx.student.create({
+            data: {
+              userId: createdUser.id,
+              studentId: `STU-${shortUid}`,
+              dateOfBirth: today,
+              enrollmentDate: today
+            }
+          });
+          break;
+
+        case 'PARENT':
+          await tx.parent.create({
+            data: {
+              userId: createdUser.id,
+              relationship: 'Non renseignée',
+              address: 'Non renseignée'
+            }
+          });
+          break;
+
+        case 'ADMIN':
+          await tx.admin.create({
+            data: {
+              userId: createdUser.id,
+              employeeId: `ADM-${shortUid}`,
+              hireDate: today
+            }
+          });
+          break;
       }
 
       return createdUser;
@@ -308,20 +369,87 @@ export const updateUser = async (req: AuthenticatedRequest, res: Response): Prom
       updateData.email = email;
     }
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        isActive: true,
-        mustChangePassword: true,
-        updatedAt: true
+    // P1-8: when the role actually changes, the profile rows must be reconciled
+    // in the same transaction. Otherwise an old Student row lingers after a
+    // STUDENT → TEACHER promotion and the matching Teacher row is missing,
+    // breaking every role-specific endpoint until the admin re-creates the
+    // user manually.
+    const roleChanged = role && role !== existing.role;
+
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: updateData,
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          isActive: true,
+          mustChangePassword: true,
+          updatedAt: true
+        }
+      });
+
+      if (roleChanged) {
+        // Drop the previous profile row (if any). The role-specific tables
+        // cascade-delete from User, but here the User row stays; we only
+        // want the obsolete profile gone.
+        switch (existing.role) {
+          case 'STUDENT': await tx.student.deleteMany({ where: { userId } }); break;
+          case 'PARENT':  await tx.parent.deleteMany({ where: { userId } }); break;
+          case 'TEACHER': await tx.teacher.deleteMany({ where: { userId } }); break;
+          case 'ADMIN':   await tx.admin.deleteMany({ where: { userId } }); break;
+        }
+
+        // Create the matching profile for the new role using the same
+        // placeholder defaults as createUser (P1-9).
+        const today = new Date();
+        const shortUid = userId.replace(/-/g, '').slice(0, 12);
+
+        switch (role) {
+          case 'TEACHER': {
+            const exists = await tx.teacher.findUnique({ where: { userId } });
+            if (!exists) {
+              await tx.teacher.create({
+                data: { userId, employeeId: `TCH-${shortUid}`, hireDate: today, qualifications: [] }
+              });
+            }
+            break;
+          }
+          case 'STUDENT': {
+            const exists = await tx.student.findUnique({ where: { userId } });
+            if (!exists) {
+              await tx.student.create({
+                data: { userId, studentId: `STU-${shortUid}`, dateOfBirth: today, enrollmentDate: today }
+              });
+            }
+            break;
+          }
+          case 'PARENT': {
+            const exists = await tx.parent.findUnique({ where: { userId } });
+            if (!exists) {
+              await tx.parent.create({
+                data: { userId, relationship: 'Non renseignée', address: 'Non renseignée' }
+              });
+            }
+            break;
+          }
+          case 'ADMIN': {
+            const exists = await tx.admin.findUnique({ where: { userId } });
+            if (!exists) {
+              await tx.admin.create({
+                data: { userId, employeeId: `ADM-${shortUid}`, hireDate: today }
+              });
+            }
+            break;
+          }
+        }
       }
+
+      return updated;
     });
 
     res.json({
@@ -330,7 +458,7 @@ export const updateUser = async (req: AuthenticatedRequest, res: Response): Prom
       data: { user }
     });
 
-    if (role && role !== existing.role) {
+    if (roleChanged) {
       await logAudit(prisma, {
         userId: req.user?.id,
         action: 'ROLE_CHANGE',
@@ -400,7 +528,8 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response): P
     const { userId } = req.params;
     const { newPassword } = req.body;
 
-    const validation = await passwordPolicy.run(req);
+    // P0-3: validate the actual `newPassword` field, not a non-existent `password` field.
+    const validation = await newPasswordPolicy.run(req);
     if (!validation.isEmpty()) {
       res.status(400).json({ success: false, errors: validation.array() });
       return;

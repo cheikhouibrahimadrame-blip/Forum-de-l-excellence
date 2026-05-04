@@ -5,11 +5,23 @@
 @tailwind utilities;
 
 /* ============================================================
-   FORUM DE L'EXCELLENCE — Design System v2
-   Art direction: Institution académique d'excellence → Sobre, premium, structuré
-   Palette: Navy profond + Blanc cassé + Accent Gold discret
-   Typography: Cabinet Grotesk (display) + Satoshi (body)
-   Density: Dashboard fonctionnel — équilibré, pas théâtral
+   FORUM DE L'EXCELLENCE — Design System v2 (dual-mode)
+   See DESIGN.md at repo root for the full playbook.
+
+   ── Mode `public` (Accueil, Programmes, Admissions, Vie de Campus)
+      Apple-inspired cinematic: hero video, glass cards, parallax
+      blobs, Cabinet Grotesk display, gradient "living text" accents.
+
+   ── Mode `ops` (every authenticated dashboard)
+      Notion-inspired minimal: soft surfaces, serif H1/H2 via ui-serif,
+      Satoshi body, role colors scoped to badges/rings only, 150 ms
+      motion budget, no glass / blobs / gradient text / parallax.
+
+   Palette: oak (olive / chartreuse / peach / gold / sage) — warm
+   natural base shared by both modes.
+   Typography: Cabinet Grotesk (display, public) + Satoshi (body)
+              + ui-serif system stack (ops headings).
+   Density: public = generous (py-24+), ops = compact (py-8, 44 px rows).
    ============================================================ */
 
 :root {
@@ -390,12 +402,39 @@
     box-shadow: var(--shadow-sm);
   }
 
+  /* Ops-mode heading (Notion-inspired). Uses a system serif stack so
+     dashboards feel editorial and calm, contrasting with the Satoshi
+     body text. Public pages keep Cabinet Grotesk via .oak-living-text*
+     and inline font-family. See DESIGN.md §5.2. */
   .topbar-title {
-    font-family: 'Cabinet Grotesk', sans-serif;
+    font-family: ui-serif, Georgia, 'Times New Roman', serif;
     font-size: var(--text-lg);
-    font-weight: 700;
+    font-weight: 600;
     color: var(--color-text);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
+  }
+
+  .ops-title {
+    font-family: ui-serif, Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-text);
+  }
+
+  /* Scope: every H1/H2/H3 inside the dashboard main canvas inherits the
+     serif treatment automatically — no per-page edits required. Pages
+     that explicitly want sans can opt out with `font-sans` / Tailwind. */
+  .dashboard-main :is(h1, h2, h3) {
+    font-family: ui-serif, Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* Ops mode kills the hover-lift on the primary button (motion budget
+     per DESIGN.md §5.7 — 150 ms color transition only, no transforms). */
+  .dashboard-main .btn-primary:hover {
+    transform: none;
+    box-shadow: none;
   }
 
   .topbar-action {

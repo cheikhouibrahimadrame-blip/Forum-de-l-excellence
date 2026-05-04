@@ -4,6 +4,7 @@ import { Calendar, Clock, MapPin, BookOpen } from 'lucide-react';
 import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 type ScheduleEntry = {
   time: string;
@@ -36,7 +37,7 @@ const StudentSchedule: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const response = await api.get(`/api/schedules/student/${user.student.id}`);
+        const response = await api.get(API.SCHEDULES_STUDENT(user.student.id));
         const result = response.data;
         const weeklySchedule = result?.data?.weeklySchedule || {};
         const mapped: Record<string, ScheduleEntry[]> = {};

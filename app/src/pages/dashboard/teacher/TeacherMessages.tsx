@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, ChevronLeft, AlertCircle, Inbox, Send } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { getReadableApiError } from '../../../lib/errorUtils';
 
 interface MessageItem {
@@ -26,7 +27,7 @@ const TeacherMessages: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const res = await api.get(`/api/messages/${type}`);
+      const res = await api.get(API.MESSAGES(type));
       const data = res.data;
       setMessages(data.data?.messages || []);
     } catch (err: any) {
@@ -43,7 +44,7 @@ const TeacherMessages: React.FC = () => {
 
   const markAsRead = async (messageId: string) => {
     try {
-      await api.put(`/api/messages/${messageId}/read`);
+      await api.put(API.MESSAGE_READ(messageId));
       fetchMessages(tab);
     } catch (err: any) {
       const message = getReadableApiError(err, 'Erreur lors de la mise à jour');

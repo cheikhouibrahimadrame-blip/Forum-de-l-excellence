@@ -2,6 +2,7 @@ import type React from 'react';
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import { api, AUTH_LOGOUT_EVENT } from '../lib/api';
+import { API } from '../lib/apiRoutes';
 import { clearAccessToken, setAccessToken } from '../lib/tokenService';
 
 export type UserRole = 'STUDENT' | 'PARENT' | 'TEACHER' | 'ADMIN';
@@ -63,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchCurrentUser = async () => {
     try {
-      const response = await api.get('/api/auth/me');
+      const response = await api.get(API.AUTH_ME);
       const data = response.data;
       setUser({
         ...data.data.user,
@@ -86,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await api.post('/api/auth/login', { email, password });
+      const response = await api.post(API.AUTH_LOGIN, { email, password });
       const data = response.data;
 
       setAccessToken(data.data.accessToken);
@@ -109,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (status === 429) {
           throw new Error('Trop de tentatives. Attendez 1 minute.');
         }
-        throw new Error(error.response?.data?.error || error?.data?.error || 'Erreur de connexion. Veuillez réessayer.');
+        throw new Error(error.response?.data?.error || error.response?.data?.message || 'Erreur de connexion. Veuillez réessayer.');
       }
 
       throw new Error('Le serveur ne renvoie pas de réponse valide. Vérifiez la connexion au backend.');
@@ -117,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    api.post('/api/auth/logout').catch(() => undefined);
+    api.post(API.AUTH_LOGOUT).catch(() => undefined);
     clearAccessToken();
     setUser(null);
   };

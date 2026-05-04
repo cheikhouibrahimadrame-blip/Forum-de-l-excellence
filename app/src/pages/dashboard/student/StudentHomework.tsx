@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ClipboardList, ChevronLeft, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface HomeworkItem {
   id: string;
@@ -24,7 +25,7 @@ const StudentHomework: React.FC = () => {
   const fetchHomeworks = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/homework');
+      const res = await api.get(API.HOMEWORK);
       const data = res.data;
       setHomeworks(data.data || []);
     } catch (err: any) {
@@ -41,7 +42,7 @@ const StudentHomework: React.FC = () => {
   const submitHomework = async (homeworkId: string) => {
     try {
       const notes = window.prompt('Notes de soumission (optionnel)') || '';
-      await api.post(`/api/homework/${homeworkId}/submit`, { notes });
+      await api.post(API.HOMEWORK_SUBMIT(homeworkId), { notes });
       fetchHomeworks();
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Erreur lors de la soumission');

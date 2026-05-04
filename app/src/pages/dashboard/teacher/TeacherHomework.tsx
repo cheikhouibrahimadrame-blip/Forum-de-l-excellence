@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClipboardList, ChevronLeft, AlertCircle, Plus } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface HomeworkItem {
   id: string;
@@ -29,7 +30,7 @@ const TeacherHomework: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const res = await api.get('/api/homework');
+      const res = await api.get(API.HOMEWORK);
       const data = res.data;
       setHomeworks(data.data || []);
     } catch (err: any) {
@@ -47,7 +48,12 @@ const TeacherHomework: React.FC = () => {
     e.preventDefault();
     try {
       setError('');
-      await api.post('/api/homework/create', formData);
+      // Backend validator requires ISO 8601 — append time portion to bare date
+      const payload = {
+        ...formData,
+        dueDate: formData.dueDate ? `${formData.dueDate}T00:00:00.000Z` : ''
+      };
+      await api.post(API.HOMEWORK_CREATE, payload);
       setFormData({ subject: '', title: '', description: '', dueDate: '' });
       setShowForm(false);
       fetchHomeworks();
@@ -89,26 +95,29 @@ const TeacherHomework: React.FC = () => {
           <form onSubmit={createHomework} className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-4 space-y-3">
             <input
               type="text"
-              placeholder="Matière"
+              placeholder="Matière (ex: Mathématiques)"
               value={formData.subject}
               onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
+              minLength={2}
               required
             />
             <input
               type="text"
-              placeholder="Titre"
+              placeholder="Titre du devoir"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
+              minLength={2}
               required
             />
             <textarea
-              placeholder="Description"
+              placeholder="Description du devoir (5 caractères minimum)"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
               rows={3}
+              minLength={5}
               required
             />
             <input
@@ -118,7 +127,7 @@ const TeacherHomework: React.FC = () => {
               className="w-full px-3 py-2 border rounded-lg"
               required
             />
-            <button className="px-4 py-2 rounded-lg bg-primary-navy text-white text-sm">Créer</button>
+            <button type="submit" className="px-4 py-2 rounded-lg bg-primary-navy text-white text-sm">Créer le devoir</button>
           </form>
         )}
 

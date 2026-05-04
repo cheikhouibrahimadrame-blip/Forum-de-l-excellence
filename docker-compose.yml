@@ -8,7 +8,9 @@ services:
     environment:
       POSTGRES_DB: forum_excellence
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      # Fail-fast: docker compose refuses to start if POSTGRES_PASSWORD is
+      # unset/empty. No default — `changeme` in production was a footgun.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set (export it or set it in your .env file)}
     ports:
       - "5432:5432"
     volumes:
@@ -44,7 +46,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/forum_excellence
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/forum_excellence
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
     depends_on:

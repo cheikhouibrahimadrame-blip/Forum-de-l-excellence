@@ -13,6 +13,7 @@ import {
   Users
 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
 
@@ -47,7 +48,7 @@ const ParentAttendance: React.FC = () => {
       try {
         setLoading(true);
         setError('');
-        const response = await api.get('/api/parent-students/my-students');
+        const response = await api.get(API.PARENT_STUDENTS_MY);
         const data = response.data;
         const payload = data?.data?.students || data?.data || [];
 
@@ -87,7 +88,7 @@ const ParentAttendance: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const response = await api.get(`/api/attendance/student/${selectedChildId}`, {
+        const response = await api.get(API.ATTENDANCE_STUDENT(selectedChildId), {
           params: { startDate, endDate }
         });
         const data = response.data;

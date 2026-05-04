@@ -4,7 +4,9 @@ import { FileText, Download, Printer, Calendar, Award, TrendingUp } from 'lucide
 import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { downloadPDF } from '../../../utils/pdfGenerator';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 type GradeRow = {
@@ -28,6 +30,7 @@ type ReportCard = {
 
 const StudentReportCards: React.FC = () => {
   const { user } = useAuth();
+  const { branding } = useBranding();
   const refreshTick = useLiveRefresh(30000);
   const { ref: headerRef, isVisible: headerVisible } = useScrollReveal();
   const { ref: cardHeaderRef, isVisible: cardHeaderVisible } = useScrollReveal();
@@ -50,7 +53,7 @@ const StudentReportCards: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const res = await api.get(`/api/grades/student/${user.student.id}`);
+        const res = await api.get(API.GRADES_BY_STUDENT(user.student.id));
         const result = res.data;
         const courses = Array.isArray(result?.data?.courses) ? result.data.courses : [];
         const semester = result?.data?.semester || 'Actuel';
@@ -157,7 +160,7 @@ const StudentReportCards: React.FC = () => {
           </tbody>
         </table>
       </div>
-      <div class="footer"><p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p><p><span class="logo">Forum de L'excellence</span> - Système de Gestion Académique</p></div>
+      <div class="footer"><p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p><p>${branding.brand.pdfFooterText}</p></div>
     `;
 
     downloadPDF(simplifiedContent, `Bulletin_${selectedReport.id}`);
@@ -215,7 +218,7 @@ const StudentReportCards: React.FC = () => {
               `).join('')}
             </tbody>
           </table>
-          <div class="footer"><p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p><p>Forum de L'excellence - Système de Gestion Académique</p></div>
+          <div class="footer"><p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p><p>${branding.brand.pdfFooterText}</p></div>
         </body>
         </html>
       `);

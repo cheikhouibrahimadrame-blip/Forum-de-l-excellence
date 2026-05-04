@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, ChevronLeft, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface LinkedStudent {
   studentId: string;
@@ -44,7 +45,7 @@ const ParentPickup: React.FC = () => {
     let hasStudents = false;
     try {
       setLoading(true);
-      const res = await api.get('/api/parent-students/my-students');
+      const res = await api.get(API.PARENT_STUDENTS_MY);
       const data = res.data;
       const items = data.data || [];
       setStudents(items);
@@ -67,7 +68,7 @@ const ParentPickup: React.FC = () => {
   const fetchAuthorized = async (studentId: string) => {
     try {
       setLoading(true);
-      const res = await api.get(`/api/pickup/${studentId}`);
+      const res = await api.get(API.PICKUP_BY_STUDENT(studentId));
       const data = res.data;
       setAuthorized(data.data || []);
     } catch (err: any) {
@@ -79,7 +80,7 @@ const ParentPickup: React.FC = () => {
 
   const fetchLogs = async () => {
     try {
-      const res = await api.get('/api/pickup/logs/history');
+      const res = await api.get(API.PICKUP_LOGS_HISTORY);
       const data = res.data;
       setLogs(data.data || []);
     } catch (err: any) {
@@ -101,7 +102,7 @@ const ParentPickup: React.FC = () => {
 
   const addAuthorized = async () => {
     try {
-      await api.post('/api/pickup/authorized/add', { ...formData, studentId: selectedStudentId });
+      await api.post(API.PICKUP_AUTHORIZED_ADD, { ...formData, studentId: selectedStudentId });
       setFormData({ personName: '', relationship: '', phoneNumber: '', idNumber: '' });
       setShowForm(false);
       fetchAuthorized(selectedStudentId);
@@ -112,7 +113,7 @@ const ParentPickup: React.FC = () => {
 
   const deleteAuthorized = async (id: string) => {
     try {
-      await api.delete(`/api/pickup/authorized/${id}`);
+      await api.delete(API.PICKUP_AUTHORIZED_ITEM(id));
       fetchAuthorized(selectedStudentId);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Erreur lors de la suppression');

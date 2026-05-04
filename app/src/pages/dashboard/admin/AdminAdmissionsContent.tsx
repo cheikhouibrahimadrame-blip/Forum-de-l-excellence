@@ -6,6 +6,7 @@ import {
   ListChecks, Calendar, Phone, HelpCircle, LayoutGrid,
 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import {
   DEFAULT_ADMISSIONS, mergeAdmissionsContent,
   type AdmissionsContent,
@@ -44,7 +45,7 @@ const AdminAdmissionsContent: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get('/api/pages/admissions');
+        const res = await api.get(API.PAGES('admissions'));
         if (!cancelled && res.data?.success && res.data.data) {
           const merged = mergeAdmissionsContent(res.data.data);
           setContent(merged);
@@ -65,7 +66,7 @@ const AdminAdmissionsContent: React.FC = () => {
     setSaving(true);
     setSaveMessage(null);
     try {
-      const res = await api.post('/api/pages/admissions', content);
+      const res = await api.post(API.PAGES('admissions'), content);
       if (res.data?.success) {
         const merged = mergeAdmissionsContent(res.data.data || content);
         setContent(merged);

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Search, Download, Eye, FileText, Calendar, BookOpen } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 interface Lesson {
@@ -45,7 +46,7 @@ const StudentLessons: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const res = await api.get('/api/homework');
+        const res = await api.get(API.HOMEWORK);
         const data = res.data;
         const items = Array.isArray(data?.data) ? data.data : [];
 

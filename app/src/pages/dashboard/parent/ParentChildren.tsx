@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, GraduationCap, TrendingUp, Calendar, FileText, MessageSquare, Mail, Phone, Eye, Award, AlertCircle, CheckCircle } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface Child {
   id: string;
@@ -37,7 +38,7 @@ const ParentChildren: React.FC = () => {
       setLoading(true);
       setError('');
       try {
-        const response = await api.get('/api/parent-students/my-students');
+        const response = await api.get(API.PARENT_STUDENTS_MY);
         const data = response.data;
         const payload = data?.data?.students || data?.data || [];
         const normalized: Child[] = payload.map((item: any) => {

@@ -35,9 +35,13 @@ jobs:
       - name: Run tests
         run: npx vitest run
 
+      - name: Audit production dependencies (high+ only)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
   # ---- Frontend ----
   frontend:
-    name: Frontend — lint & test
+    name: Frontend — lint, build & test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -57,5 +61,17 @@ jobs:
       - name: TypeScript type-check
         run: npx tsc --noEmit
 
+      - name: Lint
+        run: npm run lint
+
       - name: Run tests
         run: npx vitest run
+
+      - name: Build (vite)
+        # Catches issues invisible to tsc: missing imports inside dynamic chunks,
+        # CSS errors, env var typos, etc.
+        run: npm run build
+
+      - name: Audit production dependencies (high+ only)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true

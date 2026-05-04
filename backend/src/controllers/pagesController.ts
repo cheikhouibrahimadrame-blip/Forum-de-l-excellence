@@ -8,6 +8,13 @@ const PAGES_CONTENT_FILE = 'pages-content.json';
 // Default content (mirror of app/src/lib/pagesDefaults.ts)
 // Whenever you add a new section in pagesDefaults.ts, mirror it here.
 // The merge helper below upgrades legacy persisted JSON automatically.
+//
+// TODO (refactor): the schema is duplicated between this file and
+// `app/src/lib/pagesDefaults.ts`. A future improvement would extract
+// it into a shared workspace package (e.g. `packages/shared-content/`)
+// or hydrate the backend defaults from a JSON file shipped by the
+// frontend build. Front-end is the canonical source of truth in the
+// meantime; if frontend defaults change, mirror them here.
 // ─────────────────────────────────────────────────────────────────
 const defaultPagesContent: any = {
   programs: {
@@ -38,12 +45,133 @@ const defaultPagesContent: any = {
     },
     programsSection: { eyebrow: "Nos formations", titleLead: "Programmes", titleAccent: "pédagogiques", titleTail: "", description: "", ctaText: "", ctaLink: "" },
     programs: [
-      { id: 'prog-1', icon: 'GraduationCap', title: 'Maternelle - Petite et Moyenne Section', department: 'Maternelle', level: 'Maternelle', duration: '1 an par section', description: "Éveil sensoriel, motricité, langage oral et premiers repères logiques dans un cadre sécurisant.", features: ['Ateliers autonomes', 'Parcours motricité', 'Chansons et contes'], credits: 20 },
-      { id: 'prog-2', icon: 'GraduationCap', title: 'Maternelle - Grande Section', department: 'Maternelle', level: 'Maternelle', duration: '1 an', description: "Pré-lecture, pré-écriture et premières notions mathématiques pour préparer l'entrée en CP.", features: ['Graphisme', 'Phonologie', 'Jeux mathématiques'], credits: 22 },
-      { id: 'prog-3', icon: 'BookOpen', title: 'Cycle 1 : CI - CP', department: 'Élémentaire', level: 'Élémentaire', duration: '2 ans', description: "Lecture fluide, écriture cursive, construction du nombre et découverte du monde.", features: ['Lecture quotidienne', 'Manipulation en maths', 'Découverte du vivant'], credits: 25 },
-      { id: 'prog-4', icon: 'BookOpen', title: 'Cycle 2 : CE1 - CE2', department: 'Élémentaire', level: 'Élémentaire', duration: '2 ans', description: "Renforcement lecture/écriture, résolution de problèmes, projets sciences et culture.", features: ["Ateliers d'écriture", 'Projet sciences', 'Clubs lecture'], credits: 25 },
-      { id: 'prog-5', icon: 'BookOpen', title: 'Cycle 3 : CM1 - CM2', department: 'Élémentaire', level: 'Élémentaire', duration: '2 ans', description: "Consolidation des fondamentaux, méthodologie, initiation au numérique et anglais.", features: ['Projets interdisciplinaires', 'Anglais oral', 'Initiation au code'], credits: 25 },
-      { id: 'prog-6', icon: 'Award', title: 'Soutien & Enrichissement', department: 'Soutien & Enrichissement', level: 'Soutien', duration: 'Modules trimestriels', description: "Remédiation en français/maths, ateliers artistiques et clubs sciences pour aller plus loin.", features: ['Groupes de besoin', 'Clubs thématiques', 'Suivi individualisé'], credits: 15 },
+      {
+        id: 'prog-1', icon: 'GraduationCap', title: 'Maternelle - Petite et Moyenne Section',
+        department: 'Maternelle', level: 'Maternelle', duration: '1 an par section', credits: 20,
+        description: "Éveil sensoriel, motricité, langage oral et premiers repères logiques dans un cadre sécurisant.",
+        features: ['Ateliers autonomes', 'Parcours motricité', 'Chansons et contes'],
+        objectives: [
+          "Développer la confiance en soi et l'autonomie",
+          "Renforcer la motricité fine et globale",
+          "Initier à la communication orale",
+          "Découvrir les mathématiques de manière ludique",
+        ],
+        curriculum: [
+          "Langage et communication",
+          "Éducation physique et sportive",
+          "Découverte du monde",
+          "Activités créatives et artistiques",
+        ],
+        teachingApproach: "Notre approche pédagogique privilégie le jeu comme mode d'apprentissage principal. Les enfants découvrent le monde à travers des expériences sensorielles et des activités collaboratives, dans un environnement bienveillant et stimulant.",
+        enrollment: "Les inscriptions se font en septembre. Veuillez contacter le secrétariat pour les modalités d'admission.",
+        price: "Consultez notre barème des frais de scolarité",
+      },
+      {
+        id: 'prog-2', icon: 'GraduationCap', title: 'Maternelle - Grande Section',
+        department: 'Maternelle', level: 'Maternelle', duration: '1 an', credits: 22,
+        description: "Pré-lecture, pré-écriture et premières notions mathématiques pour préparer l'entrée en CP.",
+        features: ['Graphisme', 'Phonologie', 'Jeux mathématiques'],
+        objectives: [
+          "Préparer l'entrée à la lecture et à l'écriture",
+          "Consolider les apprentissages mathématiques",
+          "Développer l'esprit critique et la curiosité",
+          "Renforcer les compétences sociales",
+        ],
+        curriculum: [
+          "Français - Pré-lecture et graphisme",
+          "Mathématiques",
+          "Éducation physique",
+          "Arts plastiques et musique",
+        ],
+        teachingApproach: "En Grande Section, nous progressons vers des apprentissages plus structurés tout en maintenant une approche ludique. Les enfants commencent à développer des méthodes de travail qui les prépareront à l'école élémentaire.",
+        enrollment: "Les inscriptions se font en septembre. Veuillez contacter le secrétariat pour les modalités d'admission.",
+        price: "Consultez notre barème des frais de scolarité",
+      },
+      {
+        id: 'prog-3', icon: 'BookOpen', title: 'Cycle 1 : CI - CP',
+        department: 'Élémentaire', level: 'Élémentaire', duration: '2 ans', credits: 25,
+        description: "Lecture fluide, écriture cursive, construction du nombre et découverte du monde.",
+        features: ['Lecture quotidienne', 'Manipulation en maths', 'Découverte du vivant'],
+        objectives: [
+          "Maîtriser la lecture et l'écriture",
+          "Consolider les bases mathématiques",
+          "Initier aux sciences et à l'observation",
+          "Développer la confiance et l'autonomie",
+        ],
+        curriculum: [
+          "Français",
+          "Mathématiques",
+          "Découverte du monde",
+          "Éducation physique et artistique",
+        ],
+        teachingApproach: "Nous utilisons une pédagogie progressive et différenciée pour accompagner chaque enfant dans ses apprentissages. L'objectif principal est la maîtrise de la lecture et de l'écriture.",
+        enrollment: "Les inscriptions se font en septembre. Veuillez contacter le secrétariat pour les modalités d'admission.",
+        price: "Consultez notre barème des frais de scolarité",
+      },
+      {
+        id: 'prog-4', icon: 'BookOpen', title: 'Cycle 2 : CE1 - CE2',
+        department: 'Élémentaire', level: 'Élémentaire', duration: '2 ans', credits: 25,
+        description: "Renforcement lecture/écriture, résolution de problèmes, projets sciences et culture.",
+        features: ["Ateliers d'écriture", 'Projet sciences', 'Clubs lecture'],
+        objectives: [
+          "Consolider la lecture et la compréhension",
+          "Approfondir les mathématiques",
+          "Initier à l'histoire et la géographie",
+          "Développer l'esprit scientifique",
+        ],
+        curriculum: [
+          "Français et littérature",
+          "Mathématiques",
+          "Sciences et technologie",
+          "Histoire-Géographie",
+        ],
+        teachingApproach: "Avec le développement cognitif des enfants, nous introduisons progressivement les matières d'éveil. L'apprentissage reste fondé sur l'observation et l'expérience.",
+        enrollment: "Les inscriptions se font en septembre. Veuillez contacter le secrétariat pour les modalités d'admission.",
+        price: "Consultez notre barème des frais de scolarité",
+      },
+      {
+        id: 'prog-5', icon: 'BookOpen', title: 'Cycle 3 : CM1 - CM2',
+        department: 'Élémentaire', level: 'Élémentaire', duration: '2 ans', credits: 25,
+        description: "Consolidation des fondamentaux, méthodologie, initiation au numérique et anglais.",
+        features: ['Projets interdisciplinaires', 'Anglais oral', 'Initiation au code'],
+        objectives: [
+          "Maîtriser les compétences essentielles",
+          "Développer l'autonomie et la réflexion",
+          "Préparer la transition vers le collège",
+          "Encourager l'ouverture culturelle",
+        ],
+        curriculum: [
+          "Français",
+          "Mathématiques",
+          "Histoire-Géographie",
+          "Sciences et technologie",
+          "Langues vivantes",
+        ],
+        teachingApproach: "Les enfants développent une véritable autonomie d'apprentissage. Nous utilisons des pédagogies actives et des projets interdisciplinaires pour les engager dans leurs apprentissages.",
+        enrollment: "Les inscriptions se font en septembre. Veuillez contacter le secrétariat pour les modalités d'admission.",
+        price: "Consultez notre barème des frais de scolarité",
+      },
+      {
+        id: 'prog-6', icon: 'Award', title: 'Soutien & Enrichissement',
+        department: 'Soutien & Enrichissement', level: 'Soutien', duration: 'Modules trimestriels', credits: 15,
+        description: "Remédiation en français/maths, ateliers artistiques et clubs sciences pour aller plus loin.",
+        features: ['Groupes de besoin', 'Clubs thématiques', 'Suivi individualisé'],
+        objectives: [
+          "Identifier les difficultés d'apprentissage",
+          "Mettre en place un suivi personnalisé",
+          "Renforcer la confiance et l'estime de soi",
+          "Permettre à chaque enfant de progresser à son rythme",
+        ],
+        curriculum: [
+          "Remédiation en lecture et écriture",
+          "Soutien en mathématiques",
+          "Aide méthodologique",
+          "Suivi pédagogique",
+        ],
+        teachingApproach: "Nous proposons un accompagnement personnalisé basé sur un diagnostic précis des besoins de chaque enfant. Notre objectif est de restaurer la confiance et de favoriser la réussite.",
+        enrollment: "Le soutien est proposé sur recommandation de l'équipe pédagogique ou sur demande des parents.",
+        price: "Tarif horaire spécifique - Consultez le secrétariat",
+      },
     ],
     cta: {
       eyebrow: "Inscriptions 2025–2026 ouvertes",

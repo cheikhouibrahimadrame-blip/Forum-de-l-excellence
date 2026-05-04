@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { 
   Plus, 
   Pencil, 
@@ -42,7 +43,7 @@ const AdminClasses: React.FC = () => {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [academicYears, setAcademicYears] = useState<string[]>([]);
+  const [academicYears, setAcademicYears] = useState<{ id: string; year: string }[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
 
@@ -97,10 +98,10 @@ const AdminClasses: React.FC = () => {
       setError('');
       try {
         const [classesResponse, yearsResponse, teachersResponse, studentsResponse] = await Promise.all([
-          api.get('/api/classes', { signal: controller.signal }),
-          api.get('/api/academic-years', { signal: controller.signal }),
-          api.get('/api/users', { params: { role: 'TEACHER', limit: 200 }, signal: controller.signal }),
-          api.get('/api/users', { params: { role: 'STUDENT', limit: 400 }, signal: controller.signal })
+          api.get(API.CLASSES, { signal: controller.signal }),
+          api.get(API.ACADEMIC_YEARS, { signal: controller.signal }),
+          api.get(API.USERS, { params: { role: 'TEACHER', limit: 200 }, signal: controller.signal }),
+          api.get(API.USERS, { params: { role: 'STUDENT', limit: 400 }, signal: controller.signal })
         ]);
 
         const classData = classesResponse.data;
@@ -109,7 +110,9 @@ const AdminClasses: React.FC = () => {
 
         const yearsData = yearsResponse.data;
         const years = Array.isArray(yearsData?.data)
-          ? yearsData.data.map((item: { year?: string }) => item.year).filter(Boolean)
+          ? yearsData.data
+              .filter((item: any) => item.id && item.year)
+              .map((item: any) => ({ id: String(item.id), year: String(item.year) }))
           : [];
         setAcademicYears(years);
 
@@ -166,13 +169,17 @@ const AdminClasses: React.FC = () => {
   const availableTeachers = teachers.filter((teacher) => !occupiedTeacherIds.has(teacher.id));
 
   const handleAdd = () => {
+    if (!academicYears || academicYears.length === 0) {
+      setError('Veuillez d\'abord créer une année scolaire dans "Gestion des Années" avant d\'ajouter une classe.');
+      return;
+    }
     setEditingClass(null);
     const defaultTeacher = availableTeachers[0];
     setFormData({
       name: '',
       level: 'CI',
       capacity: 25,
-      academicYear: academicYears[0] || '',
+      academicYear: academicYears[0]?.id || '',
       mainTeacherId: defaultTeacher?.id || '',
       mainTeacher: defaultTeacher?.name || ''
     });
@@ -198,7 +205,7 @@ const AdminClasses: React.FC = () => {
     }
 
     try {
-      await api.delete(`/api/classes/${id}`);
+      await api.delete(API.CLASS(id));
 
       setClasses(classes.filter(c => c.id !== id));
     } catch (err: any) {
@@ -231,7 +238,7 @@ const AdminClasses: React.FC = () => {
     try {
       setAssignLoading(true);
       setError('');
-      const response = await api.post(`/api/classes/${assigningClass.id}/students/assign`, {
+      const response = await api.post(API.CLASS_ASSIGN_STUDENTS(assigningClass.id), {
         studentUserIds: selectedStudentIds
       });
 
@@ -270,9 +277,14 @@ const AdminClasses: React.FC = () => {
     e.preventDefault();
     const selectedTeacher = teachers.find((teacher) => teacher.id === formData.mainTeacherId);
 
+    if (!formData.academicYear) {
+      setError('Année scolaire requise. Veuillez en créer une d\'abord.');
+      return;
+    }
+
     try {
       if (editingClass) {
-        const response = await api.put(`/api/classes/${editingClass.id}`, {
+        const response = await api.put(API.CLASS(editingClass.id), {
           name: formData.name,
           level: formData.level,
           capacity: formData.capacity,
@@ -287,7 +299,7 @@ const AdminClasses: React.FC = () => {
           setClasses(classes.map(c => (c.id === editingClass.id ? updated : c)));
         }
       } else {
-        const response = await api.post('/api/classes', {
+        const response = await api.post(API.CLASSES, {
           name: formData.name,
           level: formData.level,
           capacity: formData.capacity,
@@ -502,7 +514,7 @@ const AdminClasses: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">
-                    {cls.academicYear}
+                    {academicYears.find(ay => ay.id === cls.academicYear)?.year || cls.academicYear || '—'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
@@ -627,8 +639,11 @@ const AdminClasses: React.FC = () => {
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white
                            focus:ring-2 focus:ring-primary-navy dark:focus:ring-primary-gold"
                 >
-                  {academicYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
+                  {academicYears.length === 0 && (
+                    <option value="" disabled>Aucune année scolaire — créez-en une d'abord</option>
+                  )}
+                  {academicYears.map(ay => (
+                    <option key={ay.id} value={ay.id}>{ay.year}</option>
                   ))}
                 </select>
               </div>

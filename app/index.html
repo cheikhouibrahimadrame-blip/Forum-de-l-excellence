@@ -1,12 +1,47 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/jpeg" href="/logo.jpeg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Forum de L'excellence — Collège Privé. Système de gestion académique pour élèves, parents, enseignants et administration." />
+    <meta name="theme-color" content="#003366" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)" />
+
+    <!-- Open Graph / social sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Forum de L'excellence" />
+    <meta property="og:description" content="Collège Privé — Système de gestion académique." />
+    <meta property="og:image" content="/logo.jpeg" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta name="twitter:card" content="summary" />
+
     <title>Forum de L'excellence</title>
+
+    <!--
+      P3-1: FOUC blocker. ThemeContext writes 'theme' to localStorage
+      ('light' | 'dark'). On first paint we apply the corresponding
+      class to <html> before any React code runs so the user never
+      sees the wrong theme flash between paint and hydration.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var dark = stored === 'dark' || (!stored && prefersDark);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (_) { /* incognito / blocked storage */ }
+      })();
+    </script>
   </head>
   <body>
+    <noscript>
+      <div style="padding:24px;font-family:system-ui,sans-serif;line-height:1.5;color:#222;background:#fff;">
+        <h1 style="margin:0 0 8px 0;">JavaScript requis</h1>
+        <p>Cette application nécessite JavaScript pour fonctionner. Merci d'activer JavaScript dans votre navigateur, puis de recharger la page.</p>
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
 import logger from '../utils/logger';
 
 const resolveDataDir = (): string => {
@@ -58,10 +59,31 @@ export const saveJsonStore = <T>(fileName: string, data: T): void => {
   ensureDataDir(dataDir);
 
   const filePath = path.join(dataDir, fileName);
+  // Random suffix avoids races between concurrent writers on the same file.
+  const tmpPath = `${filePath}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`;
+  const payload = JSON.stringify(data, null, 2);
 
+  // Atomic write pattern:
+  //   1. open + write the full payload to a sibling tmp file
+  //   2. fsync the fd so the bytes are durably on disk
+  //   3. rename(tmp, target) — POSIX atomic on the same filesystem
+  // A crash before step 3 leaves the original target untouched; the orphan
+  // tmp file is harmless (cleaned next run, see comment below).
+  let fd: number | null = null;
   try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    fd = fs.openSync(tmpPath, 'w');
+    fs.writeFileSync(fd, payload, 'utf-8');
+    try { fs.fsyncSync(fd); } catch { /* fsync may not be supported on all FS */ }
+    fs.closeSync(fd);
+    fd = null;
+    fs.renameSync(tmpPath, filePath);
   } catch (error) {
     logger.error({ error, filePath }, 'Failed to save JSON store');
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch { /* swallow */ }
+    }
+    if (fs.existsSync(tmpPath)) {
+      try { fs.unlinkSync(tmpPath); } catch { /* swallow */ }
+    }
   }
 };

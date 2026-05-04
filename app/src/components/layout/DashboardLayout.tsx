@@ -3,9 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBranding } from '../../contexts/BrandingContext';
 import { api } from '../../lib/api';
+import { API } from '../../lib/apiRoutes';
 import { getReadableApiError } from '../../lib/errorUtils';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { pickCurrentPageName } from '../../lib/currentPage';
 import {
   Menu,
   Sun,
@@ -29,7 +32,10 @@ import {
   Mail,
   X,
   Bell,
-  Search,
+  GraduationCap,
+  Sparkles,
+  ScrollText,
+  Palette,
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -56,6 +62,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [isLargeScreen, setIsLargeScreen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
+  const { branding } = useBranding();
   const location = useLocation();
   const navigate = useNavigate();
   const refreshTick = useLiveRefresh(15000);
@@ -92,8 +99,20 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         setNotificationsOpen(false);
       }
     };
-    if (userMenuOpen || notificationsOpen) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    // P3-2: Escape closes any open popover for keyboard users.
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setUserMenuOpen(false);
+      setNotificationsOpen(false);
+    };
+    if (userMenuOpen || notificationsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [userMenuOpen, notificationsOpen]);
 
   useEffect(() => {
@@ -105,9 +124,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         setNotificationsError('');
 
         const [unreadRes, inboxRes, appointmentsRes] = await Promise.all([
-          api.get('/api/messages/unread/count'),
-          api.get('/api/messages/received', { params: { unreadOnly: true, limit: 5 } }),
-          api.get('/api/appointments')
+          api.get(API.MESSAGES_UNREAD_COUNT),
+          api.get(API.MESSAGES('received'), { params: { unreadOnly: true, limit: 5 } }),
+          api.get(API.APPOINTMENTS)
         ]);
 
         const unreadCount = unreadRes.data?.data?.unreadCount ?? 0;
@@ -235,10 +254,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           { name: 'Parents & Élèves', href: '/admin/parents-students', icon: Users },
           { name: 'Rendez-vous', href: '/admin/appointments', icon: MessageSquare },
           { name: 'Présence', href: '/admin/attendance', icon: ClipboardCheck },
-          { name: 'Comportement', href: '/admin/behavior', icon: TrendingUp },
+          { name: 'Bulletins Semestriels', href: '/admin/bulletins', icon: FileText },
           { name: 'Santé', href: '/admin/health', icon: Heart },
           { name: 'Ramassage', href: '/admin/pickup', icon: ShieldCheck },
           { name: 'Page Accueil', href: '/admin/mainpage', icon: Home },
+          { name: 'Page Programmes', href: '/admin/content/programs', icon: GraduationCap },
+          { name: 'Page Vie du Campus', href: '/admin/content/campuslife', icon: Sparkles },
+          { name: 'Page Admissions', href: '/admin/content/admissions', icon: ScrollText },
+          { name: 'Identité du site', href: '/admin/branding', icon: Palette },
           { name: 'Paramètres', href: '/admin/settings', icon: Settings },
         ];
       default:
@@ -320,17 +343,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const totalNotificationCount = unreadMessageCount + pendingAppointmentCount;
 
   const navigation = getNavigationItems();
-  const currentPage = navigation.find((item) => item.href === location.pathname)?.name ?? 'Tableau de bord';
+  // P2-7: longest-prefix wins so sub-routes (e.g. /admin/users/123) still
+  // surface their parent's label instead of falling back to "Tableau de bord".
+  const currentPage = pickCurrentPageName(navigation, location.pathname, 'Tableau de bord');
 
   return (
     <div className="flex h-screen w-screen overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
       <aside className={`sidebar border-r border-[var(--color-divider)] ${!(sidebarOpen || isLargeScreen) ? 'closed' : ''}`}>
         <div className="flex flex-col h-full">
           <div className="sidebar-logo">
-            <img src="/logo.jpeg" alt="Forum de L'excellence" className="sidebar-logo-img" />
+            <img src={branding.brand.logoUrl} alt={branding.brand.name} className="sidebar-logo-img" />
             <div className="flex-1 min-w-0">
-              <div className="sidebar-logo-title truncate">Forum de L'excellence</div>
-              <div className="sidebar-logo-sub">FORUM-EXCELLENCE Dashboard</div>
+              <div className="sidebar-logo-title truncate">{branding.brand.name}</div>
+              <div className="sidebar-logo-sub">{branding.brand.tagline}</div>
             </div>
             {!isLargeScreen && (
               <button onClick={() => setSidebarOpen(false)} className="topbar-action" aria-label="Fermer le menu">
@@ -383,18 +408,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="oak-search hidden md:flex">
-              <Search className="w-4 h-4 text-[var(--color-primary)]" />
-              <input type="text" placeholder="Rechercher..." aria-label="Rechercher" />
-            </div>
+            {/* P2-5: search input removed — it had no handler / no target.
+                Reintroduce as a real component when global search is wired. */}
 
             <div className="relative" ref={notificationsRef}>
               <button
+                type="button"
                 className="topbar-action relative"
-                aria-label="Notifications"
+                aria-label={`Notifications${totalNotificationCount > 0 ? ` (${totalNotificationCount} non lues)` : ''}`}
+                aria-haspopup="menu"
+                aria-expanded={notificationsOpen}
                 onClick={() => setNotificationsOpen((prev) => !prev)}
               >
-                <Bell className="w-4 h-4" />
+                <Bell className="w-4 h-4" aria-hidden="true" />
                 {totalNotificationCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] leading-[18px] text-center font-semibold">
                     {totalNotificationCount > 99 ? '99+' : totalNotificationCount}
@@ -470,9 +496,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
             <div className="relative" ref={userMenuRef}>
               <button
+                type="button"
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-150 hover:bg-[var(--color-surface-offset)]"
                 style={{ fontSize: 'var(--text-sm)' }}
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                aria-label="Menu utilisateur"
               >
                 <div className={`w-7 h-7 rounded-full ${getRoleColor()} flex items-center justify-center flex-shrink-0`}>
                   <User className="w-3.5 h-3.5 text-white" />
@@ -541,7 +571,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        <main ref={mainRef} onClick={handleMainClick} className="flex-1 overflow-y-auto w-full">
+        <main ref={mainRef} onClick={handleMainClick} className="dashboard-main flex-1 overflow-y-auto w-full">
           {children}
         </main>
       </div>

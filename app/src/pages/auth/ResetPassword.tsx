@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Lock, ArrowLeft, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
 import { api } from '../../lib/api';
+import { API } from '../../lib/apiRoutes';
 
 const passwordError = (value: string): string | null => {
   if (value.length < 8) return 'Le mot de passe doit contenir au moins 8 caracteres.';
@@ -52,7 +53,7 @@ const ResetPassword: React.FC = () => {
     }
 
     try {
-      const response = await api.post('/api/auth/reset-password', { token, password });
+      const response = await api.post(API.AUTH_RESET_PASSWORD, { token, password });
       const data = response.data;
       if (!data?.success) {
         setError(data?.error || 'Erreur lors de la reinitialisation du mot de passe');

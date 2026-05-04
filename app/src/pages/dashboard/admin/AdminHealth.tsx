@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react';
 import { Heart, Plus, Edit2, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Card } from '../../../components/ui/card';
+import UserSelect from '../../../components/forms/UserSelect';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface HealthRecord {
   id: string;
@@ -44,7 +46,7 @@ const AdminHealth: React.FC = () => {
   const fetchRecords = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/health');
+      const response = await api.get(API.HEALTH);
       const data = response.data;
       setRecords(data.data || []);
     } catch (err: any) {
@@ -72,9 +74,9 @@ const AdminHealth: React.FC = () => {
       };
 
       if (editingId) {
-        await api.put(`/api/health/${editingId}`, payload);
+        await api.put(API.HEALTH_RECORD(editingId), payload);
       } else {
-        await api.put(`/api/health/${formData.studentId}`, payload);
+        await api.put(API.HEALTH_RECORD(formData.studentId), payload);
       }
 
       setFormData({
@@ -98,7 +100,7 @@ const AdminHealth: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Confirmer la suppression ?')) return;
     try {
-      await api.delete(`/api/health/${id}`);
+      await api.delete(API.HEALTH_RECORD(id));
       fetchRecords();
     } catch (err: any) {
       setError(err?.response?.data?.error || err.message);
@@ -131,13 +133,16 @@ const AdminHealth: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                  ID Élève *
+                  Élève *
                 </label>
-                <input
-                  type="text"
+                <UserSelect
+                  role="STUDENT"
+                  valueKind="studentId"
                   value={formData.studentId}
-                  onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-navy focus:border-transparent"
+                  onChange={(id) => setFormData({ ...formData, studentId: id })}
+                  placeholder="Sélectionner un élève"
+                  emptyHint="Aucun élève disponible"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-navy focus:border-transparent text-gray-900 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-600"
                   required
                 />
               </div>

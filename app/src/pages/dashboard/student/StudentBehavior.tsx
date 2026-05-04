@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { TrendingUp, ChevronLeft, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface BehaviorItem {
   id: string;
@@ -30,7 +31,7 @@ const StudentBehavior: React.FC = () => {
         setLoading(false);
         return;
       }
-      const res = await api.get(`/api/behavior/student/${user.student.id}`);
+      const res = await api.get(API.BEHAVIOR_STUDENT(user.student.id));
       const data = res.data;
       setBehaviors(data.data?.behaviors || []);
     } catch (err: any) {

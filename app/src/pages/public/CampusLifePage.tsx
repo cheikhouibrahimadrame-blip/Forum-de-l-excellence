@@ -9,6 +9,7 @@ import {
   CheckCircle, FileText, UserPlus, Zap, Target,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { API } from '../../lib/apiRoutes';
 import { Reveal, LivingHero, LivingCTA, MarqueeStrip, SectionTitle, featureAccents } from '../../components/public/living';
 import {
   DEFAULT_CAMPUS_LIFE, mergeCampusLifeContent,
@@ -50,7 +51,7 @@ const CampusLifePage: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get('/api/pages/campusLife');
+        const res = await api.get(API.PAGES('campusLife'));
         if (!cancelled && res.data?.success && res.data.data) {
           setContent(mergeCampusLifeContent(res.data.data));
         }

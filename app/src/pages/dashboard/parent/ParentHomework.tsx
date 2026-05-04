@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClipboardList, ChevronLeft, AlertCircle, Clock } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface HomeworkItem {
   id: string;
@@ -21,7 +22,7 @@ const ParentHomework: React.FC = () => {
   const fetchHomeworks = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/homework');
+      const res = await api.get(API.HOMEWORK);
       const data = res.data;
       setHomeworks(data.data || []);
     } catch (err: any) {

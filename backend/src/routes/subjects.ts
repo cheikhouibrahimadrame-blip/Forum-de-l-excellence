@@ -3,6 +3,7 @@ import { authenticate, authorize } from '../middleware/auth';
 import crypto from 'crypto';
 import { loadJsonStore, saveJsonStore } from '../lib/jsonStore';
 import prisma from '../lib/prisma';
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -56,7 +57,11 @@ router.get('/', async (_req, res) => {
     }));
 
     res.json({ success: true, data: mapped });
-  } catch {
+  } catch (error) {
+    // Don't swallow Prisma errors silently — the operator needs to
+    // see the underlying cause (missing table, schema drift, DB
+    // unreachable, etc.) to fix it.
+    logger.error({ error }, 'GET /api/subjects failed');
     res.status(500).json({ success: false, error: 'Erreur lors du chargement des matières' });
   }
 });

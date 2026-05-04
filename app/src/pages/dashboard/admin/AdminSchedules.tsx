@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutTemplate, Calendar, ChevronLeft, Plus, Upload, X } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface ClassItem {
   id: string;
@@ -35,7 +36,7 @@ const AdminSchedules: React.FC = () => {
 
   const fetchSummary = async () => {
     try {
-      const response = await api.get('/api/schedules/summary');
+      const response = await api.get(API.SCHEDULES_SUMMARY);
       const data = response.data;
       setSummary(data.data || summary);
     } catch (err: any) {
@@ -45,7 +46,7 @@ const AdminSchedules: React.FC = () => {
 
   const fetchClasses = async () => {
     try {
-      const response = await api.get('/api/classes');
+      const response = await api.get(API.CLASSES);
       const data = response.data;
       const payload = Array.isArray(data) ? data : data.data || [];
       setClasses(payload);
@@ -56,7 +57,7 @@ const AdminSchedules: React.FC = () => {
 
   const fetchRequests = async () => {
     try {
-      const response = await api.get('/api/schedules/requests');
+      const response = await api.get(API.SCHEDULES_REQUESTS);
       const data = response.data;
       const payload = Array.isArray(data?.data) ? data.data : [];
       setRequests(payload);
@@ -74,7 +75,7 @@ const AdminSchedules: React.FC = () => {
         return;
       }
 
-      await api.patch(`/api/schedules/requests/${requestId}/review`, {
+      await api.patch(API.SCHEDULES_REQUEST_REVIEW(requestId), {
         action,
         reason
       });
@@ -135,7 +136,7 @@ const AdminSchedules: React.FC = () => {
           </div>
 
           {loading && (
-            <div className="text-sm text-[var(--color-text-muted)]">Chargement des donnees...</div>
+            <div className="text-sm text-[var(--color-text-muted)]">Chargement des données...</div>
           )}
 
           {error && (

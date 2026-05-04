@@ -8,6 +8,7 @@ import {
   LayoutGrid, Megaphone,
 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import {
   DEFAULT_HOMEPAGE,
   mergeHomepageContent,
@@ -285,7 +286,7 @@ const AdminMainPage: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get('/api/homepage');
+        const res = await api.get(API.HOMEPAGE);
         const data = res.data;
         if (!cancelled && data?.success && data.data) {
           const merged = mergeHomepageContent(data.data);
@@ -310,7 +311,7 @@ const AdminMainPage: React.FC = () => {
     setSaving(true);
     setSaveMessage(null);
     try {
-      const res = await api.post('/api/admin/homepage', content);
+      const res = await api.post(API.ADMIN_HOMEPAGE, content);
       const data = res.data;
       if (data?.success) {
         const merged = mergeHomepageContent(data.data || content);

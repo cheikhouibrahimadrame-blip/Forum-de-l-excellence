@@ -23,8 +23,64 @@ type AcademicYear = {
 
 router.use(authenticate);
 
+/**
+ * Compute the current Senegalese/French school year based on today's date.
+ * - On or after September 1 → "<YYYY>-<YYYY+1>"
+ * - Before September 1       → "<YYYY-1>-<YYYY>"
+ */
+const computeCurrentSchoolYear = (): { label: string; startDate: Date; endDate: Date } => {
+  const now = new Date();
+  const month = now.getMonth(); // 0-indexed, 8 = September
+  const y = now.getFullYear();
+  const startYear = month >= 8 ? y : y - 1;
+  return {
+    label: `${startYear}-${startYear + 1}`,
+    startDate: new Date(Date.UTC(startYear, 8, 1)),     // Sept 1
+    endDate: new Date(Date.UTC(startYear + 1, 6, 15))   // Jul 15 next year
+  };
+};
+
+/**
+ * Ensure at least one academic year exists. Returns the (possibly newly created) default year.
+ * Safe to call concurrently: if another request creates it first, we surface whichever
+ * row already exists instead of crashing on a unique violation.
+ */
+const ensureDefaultAcademicYear = async (): Promise<void> => {
+  try {
+    const count = await (prisma as any).academicYear.count();
+    if (count > 0) return;
+
+    const { label, startDate, endDate } = computeCurrentSchoolYear();
+
+    // Default 3 trimesters: Sept-Dec, Jan-Mar, Apr-Jul
+    const y = startDate.getUTCFullYear();
+    const defaultTrimesters = [
+      { name: 'Trimestre 1', startDate: new Date(Date.UTC(y, 8, 1)),  endDate: new Date(Date.UTC(y, 11, 20)), isActive: true },
+      { name: 'Trimestre 2', startDate: new Date(Date.UTC(y + 1, 0, 6)), endDate: new Date(Date.UTC(y + 1, 2, 31)), isActive: false },
+      { name: 'Trimestre 3', startDate: new Date(Date.UTC(y + 1, 3, 15)), endDate: new Date(Date.UTC(y + 1, 6, 15)), isActive: false }
+    ];
+
+    await (prisma as any).academicYear.create({
+      data: {
+        year: label,
+        startDate,
+        endDate,
+        isActive: true,
+        trimesters: { create: defaultTrimesters }
+      }
+    });
+  } catch (error: any) {
+    // Unique-violation race: another request already seeded. Not fatal.
+    if (error?.code !== 'P2002') {
+      throw error;
+    }
+  }
+};
+
 router.get('/', async (_req, res) => {
   try {
+    await ensureDefaultAcademicYear();
+
     const years = await (prisma as any).academicYear.findMany({
       include: { trimesters: true },
       orderBy: { createdAt: 'desc' }

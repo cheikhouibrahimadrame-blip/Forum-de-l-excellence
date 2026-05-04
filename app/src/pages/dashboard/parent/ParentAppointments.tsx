@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock, User, MessageSquare, Plus, X, CheckCircle, AlertCircle, Users, Phone, Video, MapPin, Baby, Send } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { getReadableApiError } from '../../../lib/errorUtils';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
@@ -64,9 +65,9 @@ const ParentAppointments: React.FC = () => {
         setError('');
 
         const [studentsRes, teachersRes, appointmentsRes] = await Promise.all([
-          api.get('/api/parent-students/my-students'),
-          api.get('/api/users', { params: { role: 'TEACHER', limit: 100 } }),
-          api.get('/api/appointments')
+          api.get(API.PARENT_STUDENTS_MY),
+          api.get(API.USERS, { params: { role: 'TEACHER', limit: 100 } }),
+          api.get(API.APPOINTMENTS)
         ]);
 
         const studentsPayload = studentsRes.data?.data?.students || studentsRes.data?.data || [];
@@ -193,7 +194,7 @@ const ParentAppointments: React.FC = () => {
         throw new Error('Veuillez remplir les champs obligatoires');
       }
 
-      await api.post('/api/appointments', {
+      await api.post(API.APPOINTMENTS, {
         recipientId: showAddTeacher,
         appointmentType: showAddType,
         scheduledDatetime: `${showAddDate}T${showAddTime}`,
@@ -211,7 +212,7 @@ const ParentAppointments: React.FC = () => {
       setShowAddLocation('Salle de réunion');
       setShowAddNotes('');
 
-      const refreshed = await api.get('/api/appointments');
+      const refreshed = await api.get(API.APPOINTMENTS);
       const appointmentItems = Array.isArray(refreshed.data?.data?.appointments) ? refreshed.data.data.appointments : [];
       setAppointments(
         appointmentItems.map((item: any) => {

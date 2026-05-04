@@ -4,6 +4,7 @@ import { Calendar, Clock, User, MessageSquare, Plus, X, CheckCircle, Send } from
 import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 type Appointment = {
@@ -307,8 +308,8 @@ const StudentAppointments: React.FC = () => {
         setError('');
 
         const [appointmentsRes, teachersRes] = await Promise.all([
-          api.get('/api/appointments'),
-          api.get('/api/users', { params: { role: 'TEACHER', limit: 100 } })
+          api.get(API.APPOINTMENTS),
+          api.get(API.USERS, { params: { role: 'TEACHER', limit: 100 } })
         ]);
 
         const appointmentItems = Array.isArray(appointmentsRes.data?.data?.appointments)
@@ -373,8 +374,8 @@ const StudentAppointments: React.FC = () => {
     notes: string;
   }) => {
     try {
-      await api.post('/api/appointments', payload);
-      const refreshed = await api.get('/api/appointments');
+      await api.post(API.APPOINTMENTS, payload);
+      const refreshed = await api.get(API.APPOINTMENTS);
       const appointmentItems = Array.isArray(refreshed.data?.data?.appointments) ? refreshed.data.data.appointments : [];
       setAppointments(
         appointmentItems.map((item: any) => {

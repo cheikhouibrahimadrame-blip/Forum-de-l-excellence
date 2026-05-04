@@ -2,6 +2,7 @@ import type React from 'react';
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { API } from '../../lib/apiRoutes';
 import { Reveal, LivingHero, LivingCTA, MarqueeStrip, SectionTitle, featureAccents } from '../../components/public/living';
 import {
   Calendar, FileText, CheckCircle, Clock, Phone, Mail, MapPin, ChevronRight,
@@ -52,7 +53,7 @@ const AdmissionsPage: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get('/api/pages/admissions');
+        const res = await api.get(API.PAGES('admissions'));
         if (!cancelled && res.data?.success && res.data.data) {
           setContent(mergeAdmissionsContent(res.data.data));
         }

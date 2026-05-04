@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Trash2, Search, X, Upload, Download, FileText, Calendar, BookOpen, Eye, Plus } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 interface Lesson {
@@ -46,7 +47,7 @@ const TeacherLessons: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const res = await api.get('/api/homework');
+      const res = await api.get(API.HOMEWORK);
       const data = res.data;
       const items = Array.isArray(data?.data) ? data.data : [];
 
@@ -118,7 +119,7 @@ const TeacherLessons: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette ressource ?')) return;
     try {
-      await api.delete(`/api/homework/${id}`);
+      await api.delete(API.HOMEWORK_ITEM(id));
       loadLessons();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la suppression');
@@ -152,9 +153,9 @@ const TeacherLessons: React.FC = () => {
       };
 
       if (editingLesson) {
-        await api.put(`/api/homework/${editingLesson.id}`, payload);
+        await api.put(API.HOMEWORK_ITEM(editingLesson.id), payload);
       } else {
-        await api.post('/api/homework/create', payload);
+        await api.post(API.HOMEWORK_CREATE, payload);
       }
 
       setShowModal(false);

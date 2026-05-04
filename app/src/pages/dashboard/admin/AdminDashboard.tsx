@@ -1,8 +1,10 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 import {
   Users,
@@ -12,6 +14,11 @@ import {
   MoreHorizontal,
   BellRing,
   Calendar,
+  Home,
+  Sparkles,
+  ScrollText,
+  Palette,
+  ChevronRight,
 } from 'lucide-react';
 
 type EventItem = {
@@ -54,7 +61,27 @@ const AdminDashboard: React.FC = () => {
     };
 
   const { user } = useAuth();
+  const { branding } = useBranding();
   const refreshTick = useLiveRefresh(15000);
+  const location = useLocation();
+
+  // Scroll-to handler: when an admin returns from /admin/content/* via the
+  // "Retour au tableau de bord" button (which passes state.scrollTo), bring
+  // the corresponding anchor into view + briefly highlight it.
+  useEffect(() => {
+    const target = (location.state as any)?.scrollTo;
+    if (!target) return;
+    const el = document.getElementById(target);
+    if (!el) return;
+    setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('ring-2', 'ring-[var(--color-primary-gold)]', 'ring-offset-2');
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-[var(--color-primary-gold)]', 'ring-offset-2');
+        window.history.replaceState({}, document.title);
+      }, 2000);
+    }, 100);
+  }, [location.state]);
   const [academicYears, setAcademicYears] = useState<Array<{ year: string; isActive: boolean }>>([]);
   const [userCounts, setUserCounts] = useState({ active: 0, mustChangePassword: 0, disabled: 0 });
   const [roleCounts, setRoleCounts] = useState({ students: 0, parents: 0, teachers: 0, admins: 0 });
@@ -66,116 +93,132 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      try {
-        setStatsError('');
-        const [
-          activeRes,
-          mustChangeRes,
-          disabledRes,
-          studentsRes,
-          parentsRes,
-          teachersRes,
-          adminsRes,
-          yearsRes,
-          classesRes,
-          subjectsRes,
-          appointmentsRes
-        ] = await Promise.all([
-          api.get('/api/users', { params: { status: 'active', limit: 1 } }),
-          api.get('/api/users', { params: { status: 'mustChangePassword', limit: 1 } }),
-          api.get('/api/users', { params: { status: 'disabled', limit: 1 } }),
-          api.get('/api/users', { params: { role: 'STUDENT', limit: 1 } }),
-          api.get('/api/users', { params: { role: 'PARENT', limit: 1 } }),
-          api.get('/api/users', { params: { role: 'TEACHER', limit: 6 } }),
-          api.get('/api/users', { params: { role: 'ADMIN', limit: 1 } }),
-          api.get('/api/academic-years'),
-          api.get('/api/classes'),
-          api.get('/api/subjects'),
-          api.get('/api/appointments')
-        ]);
+      // Each endpoint is fetched independently via Promise.allSettled so
+      // a single 4xx/5xx response no longer blanks the whole dashboard.
+      // Failures are logged with their path + HTTP status, partial data
+      // still renders, and `statsError` only fires for total outage.
+      const endpoints = [
+        { label: 'users?status=active',           call: () => api.get(API.USERS, { params: { status: 'active', limit: 1 } }) },
+        { label: 'users?status=mustChangePassword', call: () => api.get(API.USERS, { params: { status: 'mustChangePassword', limit: 1 } }) },
+        { label: 'users?status=disabled',         call: () => api.get(API.USERS, { params: { status: 'disabled', limit: 1 } }) },
+        { label: 'users?role=STUDENT',            call: () => api.get(API.USERS, { params: { role: 'STUDENT', limit: 1 } }) },
+        { label: 'users?role=PARENT',             call: () => api.get(API.USERS, { params: { role: 'PARENT', limit: 1 } }) },
+        { label: 'users?role=TEACHER',            call: () => api.get(API.USERS, { params: { role: 'TEACHER', limit: 6 } }) },
+        { label: 'users?role=ADMIN',              call: () => api.get(API.USERS, { params: { role: 'ADMIN', limit: 1 } }) },
+        { label: 'academic-years',                call: () => api.get(API.ACADEMIC_YEARS) },
+        { label: 'classes',                       call: () => api.get(API.CLASSES) },
+        { label: 'subjects',                      call: () => api.get(API.SUBJECTS) },
+        { label: 'appointments',                  call: () => api.get(API.APPOINTMENTS) },
+      ] as const;
 
-        const activeTotal = activeRes.data?.data?.pagination?.total ?? 0;
-        const mustChangeTotal = mustChangeRes.data?.data?.pagination?.total ?? 0;
-        const disabledTotal = disabledRes.data?.data?.pagination?.total ?? 0;
-        const studentsTotal = studentsRes.data?.data?.pagination?.total ?? 0;
-        const parentsTotal = parentsRes.data?.data?.pagination?.total ?? 0;
-        const adminsTotal = adminsRes.data?.data?.pagination?.total ?? 0;
+      setStatsError('');
+      const results = await Promise.allSettled(endpoints.map((e) => e.call()));
 
-        setUserCounts({ active: activeTotal, mustChangePassword: mustChangeTotal, disabled: disabledTotal });
+      const failures: string[] = [];
+      const unwrap = (idx: number): any | null => {
+        const r = results[idx];
+        if (r.status === 'fulfilled') return r.value.data;
+        const status = (r.reason as any)?.response?.status ?? 'network';
+        const detail = (r.reason as any)?.response?.data?.error
+          ?? (r.reason as any)?.message
+          ?? 'unknown';
+        console.error(`[AdminDashboard] ${endpoints[idx].label} failed (${status}): ${detail}`, r.reason);
+        failures.push(`${endpoints[idx].label} (${status})`);
+        return null;
+      };
 
-        const teacherTotal = teachersRes.data?.data?.pagination?.total ?? 0;
-        const teacherRows: TeacherItem[] = Array.isArray(teachersRes.data?.data?.users)
-          ? teachersRes.data.data.users
-          : [];
-        setTopTeachers(
-          teacherRows.slice(0, 3).map((teacher) => ({
-            name: [teacher.firstName, teacher.lastName].filter(Boolean).join(' ').trim() || teacher.email || 'Enseignant',
-            role: 'Enseignant'
-          }))
-        );
-        setRoleCounts({
-          students: studentsTotal,
-          parents: parentsTotal,
-          teachers: teacherTotal,
-          admins: adminsTotal
-        });
+      const activeData       = unwrap(0);
+      const mustChangeData   = unwrap(1);
+      const disabledData     = unwrap(2);
+      const studentsData     = unwrap(3);
+      const parentsData      = unwrap(4);
+      const teachersData     = unwrap(5);
+      const adminsData       = unwrap(6);
+      const yearsData        = unwrap(7);
+      const classesData      = unwrap(8);
+      const subjectsData     = unwrap(9);
+      const appointmentsData = unwrap(10);
 
-        const yearsResult = yearsRes.data;
-        const years = Array.isArray(yearsResult?.data)
-          ? yearsResult.data
-              .map((item: { year?: string; isActive?: boolean }) => ({
-                year: item.year || '',
-                isActive: Boolean(item.isActive)
-              }))
-              .filter((item: { year: string }) => item.year)
-          : [];
-        setAcademicYears(years);
-        setClassSummary((prev) => ({
-          ...prev,
-          yearsClosed: years.filter((item: { isActive: boolean }) => !item.isActive).length
+      const activeTotal     = activeData?.data?.pagination?.total ?? 0;
+      const mustChangeTotal = mustChangeData?.data?.pagination?.total ?? 0;
+      const disabledTotal   = disabledData?.data?.pagination?.total ?? 0;
+      const studentsTotal   = studentsData?.data?.pagination?.total ?? 0;
+      const parentsTotal    = parentsData?.data?.pagination?.total ?? 0;
+      const adminsTotal     = adminsData?.data?.pagination?.total ?? 0;
+
+      setUserCounts({ active: activeTotal, mustChangePassword: mustChangeTotal, disabled: disabledTotal });
+
+      const teacherTotal = teachersData?.data?.pagination?.total ?? 0;
+      const teacherRows: TeacherItem[] = Array.isArray(teachersData?.data?.users)
+        ? teachersData.data.users
+        : [];
+      setTopTeachers(
+        teacherRows.slice(0, 3).map((teacher) => ({
+          name: [teacher.firstName, teacher.lastName].filter(Boolean).join(' ').trim() || teacher.email || 'Enseignant',
+          role: 'Enseignant'
+        }))
+      );
+      setRoleCounts({
+        students: studentsTotal,
+        parents: parentsTotal,
+        teachers: teacherTotal,
+        admins: adminsTotal
+      });
+
+      const years = Array.isArray(yearsData?.data)
+        ? yearsData.data
+            .map((item: { year?: string; isActive?: boolean }) => ({
+              year: item.year || '',
+              isActive: Boolean(item.isActive)
+            }))
+            .filter((item: { year: string }) => item.year)
+        : [];
+      setAcademicYears(years);
+
+      const classesCount = classesData?.data?.length ?? 0;
+      const subjectsCount = subjectsData?.data?.length ?? 0;
+
+      setClassSummary({
+        classes: classesCount,
+        subjects: subjectsCount,
+        teachers: teacherTotal,
+        yearsClosed: years.filter((item: { isActive: boolean }) => !item.isActive).length
+      });
+
+      const items = Array.isArray(appointmentsData?.data?.appointments)
+        ? appointmentsData.data.appointments
+        : [];
+
+      const monthItems = items.filter((item: any) => isInCurrentMonth(item?.scheduledDatetime));
+      const monthUpcomingItems = monthItems
+        .filter((item: any) => item?.scheduledDatetime && new Date(item.scheduledDatetime).getTime() >= Date.now())
+        .sort((a: any, b: any) => new Date(a.scheduledDatetime).getTime() - new Date(b.scheduledDatetime).getTime());
+
+      setAppointmentSummary({
+        pending:   monthItems.filter((item: { status?: string }) => item.status === 'PENDING').length,
+        confirmed: monthItems.filter((item: { status?: string }) => item.status === 'CONFIRMED').length,
+        cancelled: monthItems.filter((item: { status?: string }) => item.status === 'CANCELLED').length
+      });
+
+      const mappedEvents: EventItem[] = monthUpcomingItems
+        .slice(0, 4)
+        .map((item: any) => ({
+          id: String(item.id),
+          title: formatAppointmentType(item.appointmentType),
+          date: new Date(item.scheduledDatetime).toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: 'short'
+          }),
+          type: item.status || 'PENDING'
         }));
+      setRecentEvents(mappedEvents);
 
-        const classesCount = classesRes.data?.data?.length ?? 0;
-        const subjectsCount = subjectsRes.data?.data?.length ?? 0;
-
-        setClassSummary((prev) => ({
-          ...prev,
-          classes: classesCount,
-          subjects: subjectsCount,
-          teachers: teacherTotal
-        }));
-
-        const appointmentsResult = appointmentsRes.data;
-        const items = Array.isArray(appointmentsResult?.data?.appointments)
-          ? appointmentsResult.data.appointments
-          : [];
-
-        const monthItems = items.filter((item: any) => isInCurrentMonth(item?.scheduledDatetime));
-        const monthUpcomingItems = monthItems
-          .filter((item: any) => item?.scheduledDatetime && new Date(item.scheduledDatetime).getTime() >= Date.now())
-          .sort((a: any, b: any) => new Date(a.scheduledDatetime).getTime() - new Date(b.scheduledDatetime).getTime());
-
-        setAppointmentSummary({
-          pending: monthItems.filter((item: { status?: string }) => item.status === 'PENDING').length,
-          confirmed: monthItems.filter((item: { status?: string }) => item.status === 'CONFIRMED').length,
-          cancelled: monthItems.filter((item: { status?: string }) => item.status === 'CANCELLED').length
-        });
-
-        const mappedEvents: EventItem[] = monthUpcomingItems
-          .slice(0, 4)
-          .map((item: any) => ({
-            id: String(item.id),
-            title: formatAppointmentType(item.appointmentType),
-            date: new Date(item.scheduledDatetime).toLocaleDateString('fr-FR', {
-              day: '2-digit',
-              month: 'short'
-            }),
-            type: item.status || 'PENDING'
-          }));
-        setRecentEvents(mappedEvents);
-      } catch (error) {
-        console.error('Error loading admin dashboard:', error);
-        setStatsError('Erreur lors du chargement des statistiques.');
+      // Total outage = nothing rendered. Partial = degraded but useful.
+      // Surface the count so the admin knows what they're looking at.
+      if (failures.length === endpoints.length) {
+        setStatsError('Impossible de charger les statistiques. Vérifiez la connexion au serveur (voir la console pour les détails).');
+      } else if (failures.length > 0) {
+        setStatsError(`Statistiques partielles : ${failures.length} appel(s) en échec. Voir la console pour les endpoints concernés.`);
       }
     };
 
@@ -248,11 +291,11 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="oak-hero-banner w-full lg:w-[38%]">
-              <img src="/campus-hero.png" alt="Campus" className="absolute inset-0 w-full h-full object-cover" />
+              <img src={branding.brand.heroBannerUrl} alt={branding.brand.name} className="absolute inset-0 w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                 <div className="text-white">
-                  <div className="text-sm/5 opacity-90">Forum de L'excellence</div>
+                  <div className="text-sm/5 opacity-90">{branding.brand.name}</div>
                   <div className="text-xl font-bold">Tableau de bord campus</div>
                 </div>
                 <Link to="/admin/users" className="btn-primary !px-4 !py-2 !text-sm">
@@ -402,6 +445,56 @@ const AdminDashboard: React.FC = () => {
                   <span className="font-semibold">{appointmentSummary.cancelled}</span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* ─────────────────────────────────────────────────────────
+                Contenu site public — accès aux éditeurs CMS
+              ───────────────────────────────────────────────────────── */}
+          <div id="contenu-site-public" className="card p-5 scroll-mt-24 transition-shadow rounded-lg">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-[var(--color-primary-gold)]" />
+                  Contenu du site public
+                </h3>
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Modifiez le contenu visible par tous les visiteurs du site.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+              {[
+                { label: "Page d'accueil",   href: '/admin/mainpage',           icon: Home,           desc: "Hero, statistiques, témoignages, CTA…" },
+                { label: 'Page Programmes',   href: '/admin/content/programs',   icon: GraduationCap,  desc: 'Liste, filtres, page détail des programmes' },
+                { label: 'Page Vie du Campus', href: '/admin/content/campuslife', icon: Sparkles,       desc: 'Galerie, clubs, événements, services' },
+                { label: 'Page Admissions',   href: '/admin/content/admissions', icon: ScrollText,     desc: 'Étapes, prérequis, calendrier, FAQ' },
+                { label: 'Identité du site',  href: '/admin/branding',           icon: Palette,        desc: 'Logo, navigation, footer, réseaux sociaux' },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    className="group flex flex-col gap-2 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-[var(--color-primary-gold)] hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-lg bg-[var(--color-primary-gold)]/15 flex items-center justify-center text-[var(--color-primary-gold)]">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] group-hover:text-[var(--color-primary-gold)] group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm text-[var(--color-text-primary)]">
+                        {item.label}
+                      </div>
+                      <div className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-snug">
+                        {item.desc}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
 

@@ -201,7 +201,7 @@ export const FeatureCard: React.FC<{
 
   if (href) {
     return (
-      <Link to={href} ref={cardRef as any} className={className} onMouseMove={handleMove} onMouseLeave={handleLeave} style={style}>
+      <Link to={href} ref={cardRef as any} className={className} onMouseMove={handleMove as unknown as React.MouseEventHandler<HTMLAnchorElement>} onMouseLeave={handleLeave} style={style}>
         {inner}
       </Link>
     );
@@ -286,7 +286,45 @@ export const SectionTitle: React.FC<{
 // ─────────────────────────────────────────────────────────────
 // LivingHero — cinematic video hero w/ parallax mouse, blobs,
 // glass eyebrow pulse pill, gradient living-text title.
+//
+// The hero video plays on every page that uses LivingHero so the
+// experience is consistent with the Accueil hero. We still respect
+// `prefers-reduced-motion` for the mousemove parallax (pure decoration)
+// and use `preload="metadata"` + a WebP poster when available so the
+// initial paint stays light (~50-100 KB up-front vs. the full ~888 KB
+// excz.mp4).
 // ─────────────────────────────────────────────────────────────
+
+// Subscribe to (prefers-reduced-motion: reduce). SSR-safe: the
+// initial state is `false` (motion enabled), and the listener is
+// only wired client-side from useEffect.
+const usePrefersReducedMotion = (): boolean => {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduced(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return reduced;
+};
+
+// Derive AVIF / WebP siblings for a poster URL. Only emits siblings
+// when the source is `/foo.png` (or .jpg/.jpeg) AND the file is one
+// we actually pre-generate via `npm run optimize:hero`. Returns
+// `null` for any other URL — the caller falls back to the raw poster.
+// Exported for unit-testing.
+export const deriveOptimisedSiblings = (posterUrl: string): { avif: string; webp: string } | null => {
+  // The optimizer currently only handles campus-hero.png. Add new
+  // entries here as more hero assets get pre-encoded.
+  const optimised = new Set<string>(['/campus-hero.png']);
+  if (!optimised.has(posterUrl)) return null;
+  const base = posterUrl.replace(/\.(png|jpe?g)$/i, '');
+  return { avif: `${base}.avif`, webp: `${base}.webp` };
+};
+
 export type LivingHeroProps = {
   eyebrow?: string;
   title: string;            // last 3 words become gradient
@@ -315,8 +353,17 @@ export const LivingHero: React.FC<LivingHeroProps> = ({
   minHeight = 'min(82vh, 760px)',
 }) => {
   const heroRef = useRef<HTMLElement | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const optimisedPoster = deriveOptimisedSiblings(poster);
+  // Use WebP for the video poster when available (~82 % smaller than
+  // PNG). Browsers that don't support WebP fall through to no poster,
+  // which is fine since autoplay+muted+loop kicks in immediately.
+  const videoPosterUrl = optimisedPoster?.webp ?? poster;
 
   useEffect(() => {
+    // P2-8: skip the parallax effect entirely when the user prefers
+    // reduced motion — it's pure decoration.
+    if (prefersReducedMotion) return;
     const el = heroRef.current;
     if (!el) return;
     const onMove = (e: MouseEvent) => {
@@ -336,7 +383,7 @@ export const LivingHero: React.FC<LivingHeroProps> = ({
       el.removeEventListener('mousemove', onMove);
       el.removeEventListener('mouseleave', onLeave);
     };
-  }, []);
+  }, [prefersReducedMotion]);
 
   const renderTitle = (t: string) => {
     const parts = t.split(' ');
@@ -359,8 +406,16 @@ export const LivingHero: React.FC<LivingHeroProps> = ({
       className="relative text-white section overflow-hidden"
       style={{ minHeight }}
     >
+      {/* Always render the cinematic video so Programmes, Admissions
+          and Vie de Campus match the Accueil hero. The parallax
+          mouse-tracking effect below is still gated on
+          prefers-reduced-motion for accessibility. */}
       <video
-        autoPlay loop muted playsInline poster={poster}
+        autoPlay loop muted playsInline
+        // Only buffer metadata + first frames upfront (~50-100 KB)
+        // instead of the full ~888 KB on first paint.
+        preload="metadata"
+        poster={videoPosterUrl}
         className="absolute inset-0 w-full h-full object-cover"
       >
         <source src={videoSrc} type="video/mp4" />

@@ -12,6 +12,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface Trimester {
   id: string;
@@ -175,7 +176,7 @@ const AdminYears: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const response = await api.get('/api/academic-years');
+      const response = await api.get(API.ACADEMIC_YEARS);
       const data = response.data;
       const payload = Array.isArray(data) ? data : data.data || [];
       setAcademicYears(payload);
@@ -188,7 +189,7 @@ const AdminYears: React.FC = () => {
 
   const createYear = async (payload: AcademicYear) => {
     try {
-      await api.post('/api/academic-years', payload);
+      await api.post(API.ACADEMIC_YEARS, payload);
       await fetchAcademicYears();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la création');
@@ -197,7 +198,7 @@ const AdminYears: React.FC = () => {
 
   const updateYear = async (id: string, payload: AcademicYear) => {
     try {
-      await api.put(`/api/academic-years/${id}`, payload);
+      await api.put(API.ACADEMIC_YEAR(id), payload);
       await fetchAcademicYears();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la mise à jour');
@@ -206,7 +207,7 @@ const AdminYears: React.FC = () => {
 
   const deleteYear = async (id: string) => {
     try {
-      await api.delete(`/api/academic-years/${id}`);
+      await api.delete(API.ACADEMIC_YEAR(id));
       await fetchAcademicYears();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la suppression');
@@ -313,7 +314,7 @@ const AdminYears: React.FC = () => {
                       </h3>
                       {year.isActive && (
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                          Active
+                          En cours
                         </span>
                       )}
                     </div>

@@ -1,6 +1,8 @@
 import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenService';
+import { logger } from './logger';
+import { API } from './apiRoutes';
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
@@ -66,13 +68,29 @@ api.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     const status = error.response?.status;
 
+    // Normalize express-validator errors: responses shaped like
+    // `{ success: false, errors: [{ msg, param, ... }, ...] }`
+    // do not expose a single readable `.error` field, so every catch that
+    // reads `err.response?.data?.error` sees `undefined` and falls back
+    // to the generic axios message. Synthesize `.error` from the first
+    // validator message so the UI can show the real French reason.
+    const data: any = error.response?.data;
+    if (data && typeof data === 'object' && !data.error && Array.isArray(data.errors) && data.errors.length > 0) {
+      const messages = data.errors
+        .map((e: any) => e?.msg || e?.message)
+        .filter(Boolean);
+      if (messages.length > 0) {
+        data.error = messages.length === 1 ? messages[0] : messages.join(' • ');
+      }
+    }
+
     // If not 401, or already retried, reject
     if (status !== 401 || originalRequest?._retry) {
       return Promise.reject(error);
     }
 
     // If refresh endpoint itself failed, don't retry - logout directly
-    if (originalRequest?.url?.includes('/api/auth/refresh')) {
+    if (originalRequest?.url?.includes(API.AUTH_REFRESH)) {
       clearAccessToken();
       window.dispatchEvent(new CustomEvent(AUTH_LOGOUT_EVENT));
       console.error('[AUTH] Refresh token endpoint failed - logging out');
@@ -83,10 +101,10 @@ api.interceptors.response.use(
 
     // If no refresh in flight, start one
     if (!refreshState.inFlight) {
-      console.log('[AUTH] Starting refresh token flow');
+      logger.log('[AUTH] Starting refresh token flow');
       
       refreshState.inFlight = api
-        .post('/api/auth/refresh')
+        .post(API.AUTH_REFRESH)
         .then((response) => {
           if (!response.data?.success || !response.data?.data?.accessToken) {
             throw new Error('Invalid refresh response: missing accessToken');
@@ -94,7 +112,7 @@ api.interceptors.response.use(
           const newToken = response.data.data.accessToken as string;
           setAccessToken(newToken);
           processPendingRequests(newToken);
-          console.log('[AUTH] Token refreshed successfully');
+          logger.log('[AUTH] Token refreshed successfully');
           return newToken;
         })
         .catch((refreshError) => {
@@ -108,7 +126,7 @@ api.interceptors.response.use(
           refreshState.inFlight = null;
         });
     } else {
-      console.log('[AUTH] Refresh already in flight, queueing request');
+      logger.log('[AUTH] Refresh already in flight, queueing request');
     }
 
     // Queue this request and replay it once refresh succeeds

@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Users, Search, Plus, UserX, UserCheck, Key, ChevronLeft } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { logger } from '../../../lib/logger';
+import { API } from '../../../lib/apiRoutes';
 
 interface User {
   id: string;
@@ -31,7 +33,7 @@ const AdminUsers: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await api.get('/api/admin/users');
+      const response = await api.get(API.USERS);
       if (response.status >= 200 && response.status < 300) {
         setUsers(response.data?.data?.users || []);
       }
@@ -53,10 +55,10 @@ const AdminUsers: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await api.post('/api/users', newUser);
+      const response = await api.post(API.USERS, newUser);
       const data = response.data;
-      console.log('API Response:', data);
-      console.log('New User Data:', newUser);
+      logger.log('API Response:', data);
+      logger.log('New User Data:', newUser);
       
       if (response.status >= 200 && response.status < 300) {
         setUsers([data.data.user, ...users]);
@@ -89,7 +91,7 @@ const AdminUsers: React.FC = () => {
   const handleToggleActive = async (userId: string, currentStatus: boolean) => {
     try {
       const endpoint = currentStatus ? 'deactivate' : 'activate';
-      const response = await api.patch(`/api/admin/users/${userId}/${endpoint}`);
+      const response = await api.patch(endpoint === 'deactivate' ? API.USER_DEACTIVATE(userId) : API.USER_ACTIVATE(userId));
       if (response.status >= 200 && response.status < 300) {
         setUsers(users.map(u => u.id === userId ? { ...u, isActive: !currentStatus } : u));
       }
@@ -103,7 +105,7 @@ const AdminUsers: React.FC = () => {
     if (!tempPassword || tempPassword.length < 8) return;
 
     try {
-      const response = await api.post(`/api/admin/users/${userId}/reset-password`, {
+      const response = await api.post(API.USER_RESET_PASSWORD(userId), {
         newPassword: tempPassword
       });
       if (response.status >= 200 && response.status < 300) {

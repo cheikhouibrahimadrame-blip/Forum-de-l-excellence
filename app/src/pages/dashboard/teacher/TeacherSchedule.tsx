@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Calendar, Clock, MapPin, Users, BookOpen, Plus, X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface ScheduleItem {
   id: string;
@@ -52,7 +53,7 @@ const TeacherSchedule: React.FC = () => {
       try {
         setLoading(true);
         setError('');
-        const response = await api.get(`/api/schedules/teacher/${user.teacher.id}`);
+        const response = await api.get(API.SCHEDULES_TEACHER(user.teacher.id));
         const result = response.data;
         const teachingSchedule = result?.data?.teachingSchedule || {};
         const itemMap = new Map<string, CourseOption>();
@@ -68,7 +69,7 @@ const TeacherSchedule: React.FC = () => {
             endTime: entry.endTime || '',
             classroom: entry.location || '-',
             students: entry.enrolledStudents || 0,
-            type: 'lecture'
+            type: 'lecture' as const
           })).map((item) => {
             if (item.courseId) {
               itemMap.set(item.courseId, {
@@ -178,7 +179,7 @@ const TeacherSchedule: React.FC = () => {
     try {
       setSubmitError('');
       setSubmitSuccess('');
-      await api.post('/api/schedules', {
+      await api.post(API.SCHEDULES, {
         courseId: requestForm.courseId,
         teacherId: user.teacher.id,
         classroom: requestForm.classroom.trim(),

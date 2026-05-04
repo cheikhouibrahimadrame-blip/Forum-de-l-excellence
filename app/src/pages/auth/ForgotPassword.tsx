@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
 import { api } from '../../lib/api';
+import { API } from '../../lib/apiRoutes';
 
 const ForgotPassword: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -17,7 +18,7 @@ const ForgotPassword: React.FC = () => {
     setSuccess('');
 
     try {
-      const response = await api.post('/api/auth/forgot-password', { email });
+      const response = await api.post(API.AUTH_FORGOT_PASSWORD, { email });
       const data = response.data;
       if (!data?.success) {
         setError(data?.error || 'Erreur lors de l\'envoi du lien');

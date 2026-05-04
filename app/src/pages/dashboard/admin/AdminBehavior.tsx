@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react';
 import { AlertTriangle, Plus, Edit2, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Card } from '../../../components/ui/card';
+import UserSelect from '../../../components/forms/UserSelect';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface BehaviorLog {
   id: string;
@@ -53,7 +55,7 @@ const AdminBehavior: React.FC = () => {
   const fetchBehaviors = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/behavior/report');
+      const response = await api.get(API.BEHAVIOR_REPORT);
       const data = response.data;
       setBehaviors(data.data || []);
     } catch (err: any) {
@@ -80,9 +82,9 @@ const AdminBehavior: React.FC = () => {
       };
 
       if (editingId) {
-        await api.put(`/api/behavior/${editingId}`, payload);
+        await api.put(API.BEHAVIOR_ITEM(editingId), payload);
       } else {
-        await api.post('/api/behavior/log', payload);
+        await api.post(API.BEHAVIOR_LOG, payload);
       }
 
       setFormData({
@@ -104,7 +106,7 @@ const AdminBehavior: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Confirmer la suppression ?')) return;
     try {
-      await api.delete(`/api/behavior/${id}`);
+      await api.delete(API.BEHAVIOR_ITEM(id));
       fetchBehaviors();
     } catch (err: any) {
       setError(err?.response?.data?.error || err.message);
@@ -154,14 +156,17 @@ const AdminBehavior: React.FC = () => {
           <form onSubmit={handleSubmit} className="bg-gray-50 p-6 rounded-lg mb-6 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ID Élève *
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  Élève *
                 </label>
-                <input
-                  type="text"
+                <UserSelect
+                  role="STUDENT"
+                  valueKind="studentId"
                   value={formData.studentId}
-                  onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-navy focus:border-transparent"
+                  onChange={(id) => setFormData({ ...formData, studentId: id })}
+                  placeholder="Sélectionner un élève"
+                  emptyHint="Aucun élève disponible"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-navy focus:border-transparent text-gray-900 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-600"
                   required
                 />
               </div>

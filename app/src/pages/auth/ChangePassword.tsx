@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, Eye, EyeOff } from 'lucide-react';
 import { api } from '../../lib/api';
+import { API } from '../../lib/apiRoutes';
 import { setAccessToken } from '../../lib/tokenService';
 
 const ChangePassword: React.FC = () => {
@@ -58,7 +59,7 @@ const ChangePassword: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await api.post('/api/auth/change-password', {
+      const response = await api.post(API.AUTH_CHANGE_PASSWORD, {
         currentPassword,
         password: newPassword
       });

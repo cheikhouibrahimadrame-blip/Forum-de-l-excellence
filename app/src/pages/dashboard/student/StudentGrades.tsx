@@ -5,7 +5,9 @@ import { Award, TrendingUp, BookOpen, Download, Printer, ChevronLeft } from 'luc
 import { useScrollReveal } from '../../../hooks/useScrollReveal';
 import { downloadPDF } from '../../../utils/pdfGenerator';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 type GradeRow = {
   course: string;
@@ -19,6 +21,7 @@ type GradeRow = {
 const StudentGrades: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { branding } = useBranding();
   const { ref: headerRef, isVisible: headerVisible } = useScrollReveal();
   const { ref: statsRef, isVisible: statsVisible } = useScrollReveal();
   const { ref: tableRef, isVisible: tableVisible } = useScrollReveal();
@@ -42,7 +45,7 @@ const StudentGrades: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const response = await api.get(`/api/grades/student/${user.student.id}`);
+        const response = await api.get(API.GRADES_BY_STUDENT(user.student.id));
         const result = response.data;
         const courses = Array.isArray(result?.data?.courses) ? result.data.courses : [];
         const semester = result?.data?.semester || 'Actuel';
@@ -166,7 +169,7 @@ const StudentGrades: React.FC = () => {
 
       <div class="footer">
         <p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
-        <p><span class="logo">Forum de L'excellence</span> - Système de Gestion Académique</p>
+        <p>${branding.brand.pdfFooterText}</p>
       </div>
     `;
 
@@ -242,7 +245,7 @@ const StudentGrades: React.FC = () => {
 
           <div class="footer">
             <p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
-            <p>Forum de L'excellence - Système de Gestion Académique</p>
+            <p>${branding.brand.pdfFooterText}</p>
           </div>
         </body>
         </html>
@@ -364,7 +367,7 @@ const StudentGrades: React.FC = () => {
                   Coef.
                 </th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
-                  Appreciation
+                  Appréciation
                 </th>
               </tr>
             </thead>

@@ -3,15 +3,27 @@ import prisma from '../lib/prisma';
 import { body, validationResult } from 'express-validator';
 import { AuthenticatedRequest, authorize, checkResourceAccess } from '../middleware/auth';
 import logger from '../utils/logger';
+import { isCoursePeriodLocked } from '../utils/gradeLock';
 
+
+// express-validator v7 dropped automatic string coercion, so `body('pointsEarned').isDecimal()`
+// rejects every numeric JSON value. This custom check accepts both shapes
+// (`18` and `'18.5'`) and rejects negatives / NaN.
+const isDecimalNumberOrString = (value: unknown): boolean => {
+  if (typeof value === 'number') return Number.isFinite(value) && value >= 0;
+  if (typeof value === 'string' && /^[-+]?\d+(\.\d+)?$/.test(value)) {
+    return Number(value) >= 0;
+  }
+  return false;
+};
 
 export const createGradeValidation = [
   body('studentId').isUUID().withMessage('ID étudiant invalide'),
   body('courseId').isUUID().withMessage('ID cours invalide'),
   body('assignmentName').isLength({ min: 2 }).withMessage('Nom du devoir requis'),
   body('assignmentType').isIn(['HOMEWORK', 'QUIZ', 'EXAM', 'PROJECT', 'PARTICIPATION']).withMessage('Type de devoir invalide'),
-  body('pointsEarned').isDecimal().withMessage('Points gagnés requis'),
-  body('pointsPossible').isDecimal().withMessage('Points possibles requis')
+  body('pointsEarned').custom(isDecimalNumberOrString).withMessage('Points gagnés requis (nombre ≥ 0)'),
+  body('pointsPossible').custom(isDecimalNumberOrString).withMessage('Points possibles requis (nombre ≥ 0)')
 ];
 
 export const getStudentGrades = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
@@ -261,6 +273,35 @@ export const createGrade = async (req: AuthenticatedRequest, res: Response): Pro
       });
     }
 
+    // P0-2: verify the teacher owns this course before allowing grade creation.
+    // Without this check any teacher could post grades in any course.
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { teacherId: true }
+    });
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        error: 'Cours non trouvé'
+      });
+    }
+
+    if (course.teacherId !== teacher.id) {
+      return res.status(403).json({
+        success: false,
+        error: "Vous n'enseignez pas ce cours"
+      });
+    }
+
+    // P0-4: refuse mutation when the course's period is locked.
+    if (await isCoursePeriodLocked(courseId)) {
+      return res.status(423).json({
+        success: false,
+        error: 'Cette période est verrouillée. Saisie de notes interdite.'
+      });
+    }
+
     const enrollment = await prisma.enrollment.findFirst({
       where: {
         studentId,
@@ -364,10 +405,19 @@ export const updateGrade = async (req: AuthenticatedRequest, res: Response): Pro
       }
     }
 
+    // P0-4: refuse mutation when the course's period is locked.
+    if (await isCoursePeriodLocked(existingGrade.courseId)) {
+      return res.status(423).json({
+        success: false,
+        error: 'Cette période est verrouillée. Modification de notes interdite.'
+      });
+    }
+
     const grade = await prisma.grade.update({
       where: { id: gradeId },
       data: {
-        pointsEarned: pointsEarned || existingGrade.pointsEarned,
+        // P1-6: distinguish missing field from a legitimate zero score.
+        pointsEarned: pointsEarned !== undefined ? pointsEarned : existingGrade.pointsEarned,
         comments: comments !== undefined ? comments : existingGrade.comments
       },
       include: {
@@ -440,6 +490,14 @@ export const deleteGrade = async (req: AuthenticatedRequest, res: Response): Pro
           error: 'Accès refusé'
         });
       }
+    }
+
+    // P0-4: refuse mutation when the course's period is locked.
+    if (await isCoursePeriodLocked(existingGrade.courseId)) {
+      return res.status(423).json({
+        success: false,
+        error: 'Cette période est verrouillée. Suppression de notes interdite.'
+      });
     }
 
     await prisma.grade.delete({

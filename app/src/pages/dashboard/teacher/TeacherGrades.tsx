@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, Plus, Edit, Save, X, CheckCircle, AlertCircle, TrendingUp, Download, Upload, Search, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface Grade {
   id: string;
@@ -94,7 +95,7 @@ const TeacherGrades: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const scheduleRes = await api.get(`/api/schedules/teacher/${user.teacher.id}`);
+        const scheduleRes = await api.get(API.SCHEDULES_TEACHER(user.teacher.id));
         const scheduleData = scheduleRes.data;
         const teachingSchedule = scheduleData?.data?.teachingSchedule || {};
         const courseIds = Array.from(new Set(
@@ -111,7 +112,7 @@ const TeacherGrades: React.FC = () => {
         for (const courseId of courseIds) {
           let gradesData: any = null;
           try {
-            const gradesRes = await api.get(`/api/grades/course/${courseId}`);
+            const gradesRes = await api.get(API.GRADES_BY_COURSE(courseId));
             gradesData = gradesRes.data;
           } catch (error) {
             continue;

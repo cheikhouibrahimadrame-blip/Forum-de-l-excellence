@@ -314,6 +314,60 @@ export const gradeSubmission = async (req: AuthenticatedRequest, res: Response):
   }
 };
 
+export const updateHomework = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!['TEACHER', 'ADMIN'].includes(req.user?.role || '')) {
+      res.status(403).json({ success: false, error: 'Accès refusé - permissions insuffisantes' });
+      return;
+    }
+
+    const { homeworkId } = req.params;
+    const { subject, title, description, dueDate, attachmentUrl } = req.body;
+
+    const existing = await prisma.homework.findUnique({ where: { id: homeworkId } });
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Devoir non trouvé' });
+      return;
+    }
+
+    // Teachers can only update their own homework
+    if (req.user?.role === 'TEACHER') {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: req.user!.id } });
+      if (!teacher || existing.teacherId !== teacher.id) {
+        res.status(403).json({ success: false, error: 'Vous ne pouvez modifier que vos propres devoirs' });
+        return;
+      }
+    }
+
+    const data: any = {};
+    if (subject !== undefined) data.subject = subject;
+    if (title !== undefined) data.title = title;
+    if (description !== undefined) data.description = description;
+    if (dueDate !== undefined) data.dueDate = new Date(dueDate);
+    if (attachmentUrl !== undefined) data.attachmentUrl = attachmentUrl || null;
+
+    const homework = await prisma.homework.update({
+      where: { id: homeworkId },
+      data,
+      include: {
+        submissions: { select: { id: true, studentId: true, status: true, submittedAt: true } },
+      },
+    });
+
+    await logAudit(prisma, {
+      userId: req.user?.id,
+      action: 'UPDATE',
+      entity: 'HOMEWORK',
+      entityId: homeworkId
+    });
+
+    res.json({ success: true, data: homework });
+  } catch (error) {
+    logger.error({ error }, 'Erreur lors de la mise à jour du devoir:');
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
 export const deleteHomework = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     // Only ADMIN

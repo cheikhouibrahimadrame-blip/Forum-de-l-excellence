@@ -6,6 +6,12 @@ const HOMEPAGE_FILE = 'homepage-content.json';
 
 // Default content matches the shape declared in
 // app/src/lib/homepageDefaults.ts (DEFAULT_HOMEPAGE).
+//
+// TODO (refactor): the schema is duplicated between this file and
+// `app/src/lib/homepageDefaults.ts`. A future improvement would extract
+// it into a shared workspace package or hydrate the backend defaults
+// from a JSON file shipped by the frontend build. If frontend defaults
+// change, mirror them here.
 const defaultHomepageContent: any = {
   hero: {
     eyebrow: "Année académique 2025–2026 · Inscriptions ouvertes",

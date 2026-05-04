@@ -2,7 +2,9 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, ChevronLeft, AlertCircle, Plus } from 'lucide-react';
+import UserSelect from '../../../components/forms/UserSelect';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface BehaviorItem {
   id: string;
@@ -33,7 +35,7 @@ const TeacherBehavior: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const res = await api.get('/api/behavior/report');
+      const res = await api.get(API.BEHAVIOR_REPORT);
       const data = res.data;
       setBehaviors(data.data || []);
     } catch (err: any) {
@@ -51,7 +53,7 @@ const TeacherBehavior: React.FC = () => {
     e.preventDefault();
     try {
       setError('');
-      const res = await api.post('/api/behavior/log', {
+      const res = await api.post(API.BEHAVIOR_LOG, {
         ...formData,
         points: parseInt(formData.points, 10),
         date: formData.date || undefined
@@ -62,7 +64,7 @@ const TeacherBehavior: React.FC = () => {
       setShowForm(false);
       fetchBehaviors();
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de la création');
+      setError(err?.response?.data?.error || err?.message || 'Erreur lors de la création');
     }
   };
 
@@ -97,14 +99,19 @@ const TeacherBehavior: React.FC = () => {
 
         {showForm && (
           <form onSubmit={logBehavior} className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-4 space-y-3">
-            <input
-              type="text"
-              placeholder="ID Élève"
-              value={formData.studentId}
-              onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg"
-              required
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Élève *</label>
+              <UserSelect
+                role="STUDENT"
+                valueKind="studentId"
+                value={formData.studentId}
+                onChange={(id) => setFormData({ ...formData, studentId: id })}
+                placeholder="Sélectionner un élève"
+                emptyHint="Aucun élève disponible"
+                className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+                required
+              />
+            </div>
             <select
               value={formData.type}
               onChange={(e) => setFormData({ ...formData, type: e.target.value })}
@@ -126,11 +133,12 @@ const TeacherBehavior: React.FC = () => {
               <option value="KINDNESS">Bienveillance</option>
             </select>
             <textarea
-              placeholder="Description"
+              placeholder="Description (5 caractères minimum)"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
               rows={3}
+              minLength={5}
               required
             />
             <input

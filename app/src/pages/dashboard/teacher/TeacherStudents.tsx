@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Users, Search, Mail, Phone, FileText, TrendingUp, AlertCircle, CheckCircle, XCircle, ChevronDown, Eye, MessageSquare, Award } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 interface Student {
@@ -38,7 +39,7 @@ const TeacherStudents: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const response = await api.get('/api/classes/teacher/students');
+        const response = await api.get(API.CLASSES_TEACHER_STUDENTS);
         const result = response.data;
         const userItems = Array.isArray(result?.data?.students) ? result.data.students : [];
 
@@ -74,8 +75,8 @@ const TeacherStudents: React.FC = () => {
         setStudents(mapped);
         setClasses(['all', ...Array.from(classSet).sort()]);
       } catch (err) {
-        console.error('Erreur lors du chargement des eleves:', err);
-        setError('Erreur lors du chargement des eleves.');
+        console.error('Erreur lors du chargement des élèves:', err);
+        setError('Erreur lors du chargement des élèves.');
       } finally {
         setLoading(false);
       }
@@ -144,13 +145,13 @@ const TeacherStudents: React.FC = () => {
         <div className="space-y-8">
           {/* Header */}
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">Mes eleves</h1>
+            <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">Mes élèves</h1>
             <div className="flex gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-muted)]" />
                 <input
                   type="text"
-                  placeholder="Rechercher un eleve..."
+                  placeholder="Rechercher un élève..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="input-field pl-10 w-64"
@@ -174,7 +175,7 @@ const TeacherStudents: React.FC = () => {
           </div>
 
           {loading && (
-            <div className="text-sm text-[var(--color-text-muted)]">Chargement des eleves...</div>
+            <div className="text-sm text-[var(--color-text-muted)]">Chargement des élèves...</div>
           )}
           {error && (
             <div className="text-sm text-red-600">{error}</div>
@@ -186,7 +187,7 @@ const TeacherStudents: React.FC = () => {
               <div className="card overflow-hidden">
                 <div className="p-6 border-b border-[var(--color-border)]">
                     <h2 className="text-xl font-semibold text-[var(--color-text-primary)]">
-                    Liste des eleves ({filteredStudents.length})
+                    Liste des élèves ({filteredStudents.length})
                   </h2>
                 </div>
                 <div className="overflow-x-auto">
@@ -194,7 +195,7 @@ const TeacherStudents: React.FC = () => {
                     <thead className="bg-[var(--color-bg-secondary)]">
                       <tr>
                         <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
-                          Eleve
+                          Élève
                         </th>
                         <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
                           Classe
@@ -203,7 +204,7 @@ const TeacherStudents: React.FC = () => {
                           Moyenne
                         </th>
                         <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
-                          Presence
+                          Présence
                         </th>
                         <th className="px-6 py-4 text-left text-sm font-semibold text-[var(--color-text-secondary)]">
                           Statut

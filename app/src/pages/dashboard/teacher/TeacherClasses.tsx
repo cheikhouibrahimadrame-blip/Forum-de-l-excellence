@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Users, Calendar, Clock, FileText, MessageSquare, Edit, Eye, CheckCircle, TrendingUp, Award, BarChart3 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 interface Class {
@@ -93,7 +94,7 @@ const TeacherClasses: React.FC = () => {
       setLoading(true);
       setError('');
       try {
-        const response = await api.get('/api/classes', { signal: controller.signal });
+        const response = await api.get(API.CLASSES, { signal: controller.signal });
         const data = response.data;
         const payload = Array.isArray(data) ? data : data.data || [];
         setClasses(payload);
@@ -159,7 +160,7 @@ const TeacherClasses: React.FC = () => {
       setAnnouncementError('');
       setAnnouncementSuccess('');
 
-      const response = await api.post(`/api/classes/${selectedClassData.id}/announce`, {
+      const response = await api.post(API.CLASS_ANNOUNCE(selectedClassData.id), {
         title: announcementTitle.trim(),
         content: announcementContent.trim()
       });
@@ -207,7 +208,7 @@ const TeacherClasses: React.FC = () => {
       setEditError('');
       setEditSuccess('');
 
-      await api.put(`/api/classes/${selectedClassData.id}`, {
+      await api.put(API.CLASS(selectedClassData.id), {
         name: editTitle.trim(),
         capacity: capacityValue
       });
@@ -234,7 +235,7 @@ const TeacherClasses: React.FC = () => {
       setNotesError('');
 
       try {
-        const response = await api.get(`/api/classes/${selectedClass}/notes-summary`, { signal: controller.signal });
+        const response = await api.get(API.CLASS_NOTES_SUMMARY(selectedClass), { signal: controller.signal });
         const payload = response.data?.data;
 
         setNotesSummary({

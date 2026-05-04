@@ -29,16 +29,22 @@ services:
           property: connectionString
       - key: FRONTEND_URL
         sync: false
+      - key: BACKEND_PUBLIC_URL
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: JWT_REFRESH_SECRET
         sync: false
       - key: JWT_EXPIRES_IN
-        value: 15m
+        value: 60m
       - key: JWT_REFRESH_EXPIRES_IN
         value: 7d
       - key: RATE_LIMIT_DISABLE_IN_DEV
         value: "false"
+      # Render sits one hop in front of the app — express needs to know
+      # so req.ip / X-Forwarded-For resolve to the real client.
+      - key: TRUST_PROXY
+        value: "1"
 
   - type: web
     name: forum-excellence-frontend
@@ -46,6 +52,13 @@ services:
     rootDir: app
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
+    # SPA rewrite — without this, refreshing /admin/users (or any deep link)
+    # returns a 404 from Render's static host because no `index.html` is
+    # served for arbitrary paths.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
         sync: false

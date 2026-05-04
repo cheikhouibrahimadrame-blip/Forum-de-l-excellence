@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, MapPin, BookOpen, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface ScheduleItem {
   id: string;
@@ -38,7 +39,7 @@ const ParentSchedule: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const studentsRes = await api.get('/api/parent-students/my-students');
+        const studentsRes = await api.get(API.PARENT_STUDENTS_MY);
         const studentsData = studentsRes.data;
         const students = Array.isArray(studentsData?.data?.students) ? studentsData.data.students : [];
         setLinkedStudents(students);
@@ -48,7 +49,7 @@ const ParentSchedule: React.FC = () => {
         for (const student of students) {
           let scheduleData: any = null;
           try {
-            const scheduleRes = await api.get(`/api/schedules/student/${student.id}`);
+            const scheduleRes = await api.get(API.SCHEDULES_STUDENT(student.id));
             scheduleData = scheduleRes.data;
           } catch (error) {
             continue;

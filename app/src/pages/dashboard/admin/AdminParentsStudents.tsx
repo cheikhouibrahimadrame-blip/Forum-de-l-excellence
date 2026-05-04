@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Link as LinkIcon, ChevronLeft, UserPlus, UserCheck, X } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { logger } from '../../../lib/logger';
+import { API } from '../../../lib/apiRoutes';
 
 interface User {
   id: number;
@@ -89,7 +91,7 @@ const AdminParentsStudents: React.FC = () => {
     setLinksLoading(true);
     setLinksError('');
     try {
-      const response = await api.get('/api/parent-students/all');
+      const response = await api.get(API.PARENT_STUDENTS_ALL);
       const data = response.data;
       const items: ParentStudentApiLink[] = Array.isArray(data?.data?.links) ? data.data.links : [];
       setLinks(buildLinkGroups(items));
@@ -104,7 +106,7 @@ const AdminParentsStudents: React.FC = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await api.get('/api/users');
+        const response = await api.get(API.USERS);
         const data = response.data;
         let usersList: User[] = [];
 
@@ -149,12 +151,12 @@ const AdminParentsStudents: React.FC = () => {
           studentIds: selectedStudents
         };
 
-        console.log('[Link Parent] Request', {
-          url: '/api/parent-students',
+        logger.log('[Link Parent] Request', {
+          url: API.PARENT_STUDENTS,
           method: 'POST',
           body: payload
         });
-        const response = await api.post('/api/parent-students', payload);
+        const response = await api.post(API.PARENT_STUDENTS, payload);
         const data = response.data;
 
         if (!data?.error) {

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, ChevronLeft, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface LinkedStudent {
   id: string;
@@ -32,7 +33,7 @@ const ParentBehavior: React.FC = () => {
 
   const fetchStudents = async () => {
     try {
-      const res = await api.get('/api/parent-students/my-students');
+      const res = await api.get(API.PARENT_STUDENTS_MY);
       const data = res.data;
       setStudents(data.data || []);
       if (data.data?.length > 0) setSelectedStudentId(data.data[0].studentId);
@@ -44,7 +45,7 @@ const ParentBehavior: React.FC = () => {
   const fetchBehaviors = async (studentId: string) => {
     try {
       setLoading(true);
-      const res = await api.get(`/api/behavior/student/${studentId}`);
+      const res = await api.get(API.BEHAVIOR_STUDENT(studentId));
       const data = res.data;
       setBehaviors(data.data?.behaviors || []);
     } catch (err: any) {

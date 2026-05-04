@@ -6,6 +6,7 @@ import {
   Calendar, ImageIcon, Building2, Heart, LayoutGrid,
 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import {
   DEFAULT_CAMPUS_LIFE, mergeCampusLifeContent,
   type CampusLifeContent,
@@ -43,7 +44,7 @@ const AdminCampusLifeContent: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get('/api/pages/campusLife');
+        const res = await api.get(API.PAGES('campusLife'));
         if (!cancelled && res.data?.success && res.data.data) {
           const merged = mergeCampusLifeContent(res.data.data);
           setContent(merged);
@@ -64,7 +65,7 @@ const AdminCampusLifeContent: React.FC = () => {
     setSaving(true);
     setSaveMessage(null);
     try {
-      const res = await api.post('/api/pages/campusLife', content);
+      const res = await api.post(API.PAGES('campusLife'), content);
       if (res.data?.success) {
         const merged = mergeCampusLifeContent(res.data.data || content);
         setContent(merged);
@@ -103,7 +104,7 @@ const AdminCampusLifeContent: React.FC = () => {
     try {
       const formData = new FormData();
       Array.from(files).forEach((file) => formData.append('files', file));
-      const res = await api.post('/api/uploads/campus-life', formData);
+      const res = await api.post(API.UPLOADS_CAMPUS_LIFE, formData);
       const result = res.data;
       if (result.success && Array.isArray(result.data)) {
         const newItems: CampusGalleryItem[] = result.data.map((item: { url: string; alt?: string; type: 'image' | 'video' }) => ({

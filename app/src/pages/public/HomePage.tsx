@@ -2,6 +2,7 @@ import type React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { API } from '../../lib/apiRoutes';
 import {
   GraduationCap, BookOpen, Users, Award, Calendar, ArrowRight, ChevronRight,
   Star, Heart, Shield, Sparkles, ArrowDown, Quote, PlayCircle, MapPin, Clock,
@@ -18,7 +19,6 @@ import {
   type HomepageBentoItem,
   type HomepageMarqueeItem,
   type HomepagePlatformItem,
-  type HomepageTestimonial,
   type HomepageSectionTitle,
 } from '../../lib/homepageDefaults';
 
@@ -300,7 +300,7 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     const fetchHomepage = async () => {
       try {
-        const response = await api.get('/api/homepage');
+        const response = await api.get(API.HOMEPAGE);
         const result = response.data;
         if (result?.success && result.data) {
           setContent(mergeHomepageContent(result.data));

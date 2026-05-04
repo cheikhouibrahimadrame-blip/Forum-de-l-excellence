@@ -152,15 +152,15 @@ export const createParentStudentLink = async (req: AuthenticatedRequest, res: Re
           return { studentId, success: false, error: 'Lien déjà existant' };
         }
 
-        // Create the link
+        // Create the link.
+        // P3-6: canAccessGrades / canAccessSchedule were dropped — they
+        // were always true and never enforced. See schema comment.
         const link = await prisma.parentStudent.create({
           data: {
             parentId: parent.id,
             studentId: student.id,
             relationship,
-            isPrimaryContact: false,
-            canAccessGrades: true,
-            canAccessSchedule: true
+            isPrimaryContact: false
           },
           include: {
             student: {
@@ -232,9 +232,7 @@ export const getParentStudents = async (req: AuthenticatedRequest, res: Response
         ...link.student,
         linkId: link.id,
         relationship: link.relationship,
-        isPrimaryContact: link.isPrimaryContact,
-        canAccessGrades: link.canAccessGrades,
-        canAccessSchedule: link.canAccessSchedule
+        isPrimaryContact: link.isPrimaryContact
       }))}
     });
   } catch (error) {
@@ -317,9 +315,7 @@ export const getMyStudents = async (req: AuthenticatedRequest, res: Response) =>
           ...link.student,
           linkId: link.id,
           relationship: link.relationship,
-          isPrimaryContact: link.isPrimaryContact,
-          canAccessGrades: link.canAccessGrades,
-          canAccessSchedule: link.canAccessSchedule
+          isPrimaryContact: link.isPrimaryContact
         }))
       }
     });

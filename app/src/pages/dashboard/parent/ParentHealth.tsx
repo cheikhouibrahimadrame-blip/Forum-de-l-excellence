@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, ChevronLeft, AlertCircle, Save } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface LinkedStudent {
   studentId: string;
@@ -31,7 +32,7 @@ const ParentHealth: React.FC = () => {
 
   const fetchStudents = async () => {
     try {
-      const res = await api.get('/api/parent-students/my-students');
+      const res = await api.get(API.PARENT_STUDENTS_MY);
       const data = res.data;
       setStudents(data.data || []);
       if (data.data?.length > 0) setSelectedStudentId(data.data[0].studentId);
@@ -43,7 +44,7 @@ const ParentHealth: React.FC = () => {
   const fetchRecord = async (studentId: string) => {
     try {
       setLoading(true);
-      const res = await api.get(`/api/health/${studentId}`);
+      const res = await api.get(API.HEALTH_RECORD(studentId));
       const data = res.data;
       setRecord(data.data || null);
     } catch (err: any) {
@@ -65,7 +66,7 @@ const ParentHealth: React.FC = () => {
     if (!selectedStudentId) return;
     try {
       setSaving(true);
-      const res = await api.put(`/api/health/${selectedStudentId}`, record || {});
+      const res = await api.put(API.HEALTH_RECORD(selectedStudentId), record || {});
       const data = res.data;
       setRecord(data.data || record);
     } catch (err: any) {

@@ -3,9 +3,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Home, ChevronLeft, Save, Eye, RefreshCcw, Megaphone, GraduationCap,
-  Filter as FilterIcon, LayoutGrid, AlertCircle, CheckCircle2,
+  Filter as FilterIcon, LayoutGrid,
 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import {
   DEFAULT_PROGRAMS, mergeProgramsContent,
   type ProgramsContent, type ProgramItem,
@@ -37,7 +38,7 @@ const AdminProgramsContent: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get('/api/pages/programs');
+        const res = await api.get(API.PAGES('programs'));
         if (!cancelled && res.data?.success && res.data.data) {
           const merged = mergeProgramsContent(res.data.data);
           setContent(merged);
@@ -58,7 +59,7 @@ const AdminProgramsContent: React.FC = () => {
     setSaving(true);
     setSaveMessage(null);
     try {
-      const res = await api.post('/api/pages/programs', content);
+      const res = await api.post(API.PAGES('programs'), content);
       if (res.data?.success) {
         const merged = mergeProgramsContent(res.data.data || content);
         setContent(merged);
@@ -223,48 +224,105 @@ const AdminProgramsContent: React.FC = () => {
                 <ListEditor<ProgramItem>
                   items={programs}
                   setItems={(next) => update('programs', next)}
-                  newItem={() => ({ id: newId('prog'), icon: 'BookOpen', title: '', department: filters.departments[0] || '', level: filters.levels[0] || '', duration: '', description: '', features: [], credits: 0 })}
+                  newItem={() => ({ id: newId('prog'), icon: 'BookOpen', title: '', department: filters.departments[0] || '', level: filters.levels[0] || '', duration: '', description: '', features: [], credits: 0, objectives: [], curriculum: [], teachingApproach: '', enrollment: '', price: '' })}
                   addLabel="Ajouter un programme"
                   itemTitle={(it) => it.title || 'Nouveau programme'}
                   renderItem={(item, u) => (
-                    <div className="grid md:grid-cols-2 gap-3">
-                      <SelectField label="Icône" value={item.icon} onChange={(v) => u({ icon: v })} options={HOMEPAGE_ICON_OPTIONS} />
-                      <TextField label="Titre" value={item.title} onChange={(v) => u({ title: v })} placeholder="Cycle 2 : CE1 - CE2" />
+                    <div className="space-y-5">
+                      {/* ── Carte (page liste) ─────────────────────────────── */}
                       <div>
-                        <label className={labelCls}>Section / Département</label>
-                        <select
-                          value={item.department}
-                          onChange={(e) => u({ department: e.target.value })}
-                          className={inputCls}
-                        >
-                          <option value="">— Aucune —</option>
-                          {filters.departments.map((d) => <option key={d} value={d}>{d}</option>)}
-                        </select>
+                        <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 uppercase tracking-wide">
+                          Carte (page Programmes)
+                        </h4>
+                        <div className="grid md:grid-cols-2 gap-3">
+                          <SelectField label="Icône" value={item.icon} onChange={(v) => u({ icon: v })} options={HOMEPAGE_ICON_OPTIONS} />
+                          <TextField label="Titre" value={item.title} onChange={(v) => u({ title: v })} placeholder="Cycle 2 : CE1 - CE2" />
+                          <div>
+                            <label className={labelCls}>Section / Département</label>
+                            <select
+                              value={item.department}
+                              onChange={(e) => u({ department: e.target.value })}
+                              className={inputCls}
+                            >
+                              <option value="">— Aucune —</option>
+                              {filters.departments.map((d) => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className={labelCls}>Cycle / Niveau</label>
+                            <select
+                              value={item.level}
+                              onChange={(e) => u({ level: e.target.value })}
+                              className={inputCls}
+                            >
+                              <option value="">— Aucun —</option>
+                              {filters.levels.map((l) => <option key={l} value={l}>{l}</option>)}
+                            </select>
+                          </div>
+                          <TextField label="Durée" value={item.duration} onChange={(v) => u({ duration: v })} placeholder="2 ans" />
+                          <NumberField label="Élèves max" value={item.credits} onChange={(v) => u({ credits: v })} min={0} max={500} />
+                          <div className="md:col-span-2">
+                            <TextAreaField label="Description (résumé)" value={item.description} onChange={(v) => u({ description: v })} rows={3} />
+                          </div>
+                          <div className="md:col-span-2">
+                            <StringListField
+                              label="Tags / caractéristiques"
+                              value={item.features}
+                              onChange={(v) => u({ features: v })}
+                              rows={3}
+                              placeholder={'Ateliers d\'écriture\nProjet sciences\nClubs lecture'}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label className={labelCls}>Cycle / Niveau</label>
-                        <select
-                          value={item.level}
-                          onChange={(e) => u({ level: e.target.value })}
-                          className={inputCls}
-                        >
-                          <option value="">— Aucun —</option>
-                          {filters.levels.map((l) => <option key={l} value={l}>{l}</option>)}
-                        </select>
-                      </div>
-                      <TextField label="Durée" value={item.duration} onChange={(v) => u({ duration: v })} placeholder="2 ans" />
-                      <NumberField label="Élèves max" value={item.credits} onChange={(v) => u({ credits: v })} min={0} max={500} />
-                      <div className="md:col-span-2">
-                        <TextAreaField label="Description" value={item.description} onChange={(v) => u({ description: v })} rows={3} />
-                      </div>
-                      <div className="md:col-span-2">
-                        <StringListField
-                          label="Tags / fonctionnalités"
-                          value={item.features}
-                          onChange={(v) => u({ features: v })}
-                          rows={3}
-                          placeholder={'Ateliers d\'écriture\nProjet sciences\nClubs lecture'}
-                        />
+
+                      {/* ── Page détail (/programmes/:id) ─────────────────── */}
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1 uppercase tracking-wide">
+                          Page détail
+                        </h4>
+                        <p className="text-xs text-[var(--color-text-muted)] mb-3">
+                          Contenu affiché sur <code className="text-[var(--color-text-secondary)]">/programmes/{item.id}</code> quand un visiteur clique sur "Voir les détails".
+                        </p>
+                        <div className="grid md:grid-cols-1 gap-3">
+                          <TextAreaField
+                            label="Approche pédagogique"
+                            value={item.teachingApproach || ''}
+                            onChange={(v) => u({ teachingApproach: v })}
+                            rows={4}
+                            placeholder="Notre approche pédagogique privilégie le jeu comme mode d'apprentissage principal…"
+                          />
+                          <StringListField
+                            label="Objectifs pédagogiques (un par ligne)"
+                            value={item.objectives || []}
+                            onChange={(v) => u({ objectives: v })}
+                            rows={5}
+                            placeholder={"Maîtriser la lecture et l'écriture\nConsolider les bases mathématiques\nInitier aux sciences et à l'observation"}
+                          />
+                          <StringListField
+                            label="Programme d'études / matières (une par ligne)"
+                            value={item.curriculum || []}
+                            onChange={(v) => u({ curriculum: v })}
+                            rows={5}
+                            placeholder={"Français\nMathématiques\nDécouverte du monde\nÉducation physique et artistique"}
+                          />
+                          <div className="grid md:grid-cols-2 gap-3">
+                            <TextAreaField
+                              label="Modalités d'inscription"
+                              value={item.enrollment || ''}
+                              onChange={(v) => u({ enrollment: v })}
+                              rows={3}
+                              placeholder="Les inscriptions se font en septembre…"
+                            />
+                            <TextAreaField
+                              label="Frais de scolarité"
+                              value={item.price || ''}
+                              onChange={(v) => u({ price: v })}
+                              rows={3}
+                              placeholder="Consultez notre barème des frais de scolarité"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}

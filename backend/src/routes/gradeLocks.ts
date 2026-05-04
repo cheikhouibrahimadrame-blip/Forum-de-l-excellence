@@ -24,8 +24,43 @@ router.get('/', authorize(['ADMIN']), async (_req, res) => {
 
 router.get('/summary', authorize(['ADMIN']), async (_req, res) => {
   try {
-    const lockedCount = await (prisma as any).gradeLock.count();
-    res.json({ success: true, data: { completionRate: 0, openPeriods: 0, lockedPeriods: lockedCount } });
+    // P0-4: stop returning hard-coded zeros. The previous implementation made
+    // the admin grade-locks page useless ("0% completion / 0 open periods"
+    // regardless of actual state).
+
+    const [enrollmentTotal, enrollmentGraded, courseSemesters, lockRows] = await Promise.all([
+      prisma.enrollment.count({ where: { status: 'ENROLLED' } }),
+      prisma.enrollment.count({ where: { status: 'ENROLLED', finalGrade: { not: null } } }),
+      prisma.course.findMany({
+        where: { isActive: true },
+        select: { semester: true },
+        distinct: ['semester']
+      }),
+      (prisma as any).gradeLock.findMany({
+        select: { period: true }
+      }) as Promise<Array<{ period: string }>>
+    ]);
+
+    const completionRate = enrollmentTotal > 0
+      ? Math.round((enrollmentGraded / enrollmentTotal) * 100)
+      : 0;
+
+    const distinctSemesters = new Set(
+      courseSemesters
+        .map(c => (c.semester || '').trim())
+        .filter(Boolean)
+    );
+    const lockedSemesters = new Set(
+      (lockRows || []).map(l => (l.period || '').trim()).filter(Boolean)
+    );
+
+    const openPeriods = [...distinctSemesters].filter(s => !lockedSemesters.has(s)).length;
+    const lockedPeriods = lockedSemesters.size;
+
+    res.json({
+      success: true,
+      data: { completionRate, openPeriods, lockedPeriods }
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Erreur lors du calcul du résumé' });
   }

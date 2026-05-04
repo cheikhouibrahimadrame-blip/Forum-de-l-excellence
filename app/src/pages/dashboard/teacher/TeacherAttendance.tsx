@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface Student {
   id: string;
@@ -69,7 +70,7 @@ const TeacherAttendance: React.FC = () => {
       try {
         setLoading(true);
         setError('');
-        const response = await api.get(`/api/schedules/teacher/${user.teacher.id}`);
+        const response = await api.get(API.SCHEDULES_TEACHER(user.teacher.id));
         const result = response.data;
         const teachingSchedule = result?.data?.teachingSchedule || {};
         const courseMap = new Map<string, CourseItem>();
@@ -113,7 +114,7 @@ const TeacherAttendance: React.FC = () => {
       try {
         setLoading(true);
         setError('');
-        const response = await api.get(`/api/attendance/class/${selectedClass}`, {
+        const response = await api.get(API.ATTENDANCE_BY_CLASS(selectedClass), {
           params: { date: selectedDate }
         });
         const result = response.data;
@@ -145,8 +146,8 @@ const TeacherAttendance: React.FC = () => {
         setStudents(studentList);
         setAttendance(records);
       } catch (err) {
-        console.error('Erreur lors du chargement des presences:', err);
-        setError('Erreur lors du chargement des presences.');
+        console.error('Erreur lors du chargement des présences:', err);
+        setError('Erreur lors du chargement des présences.');
         setStudents([]);
         setAttendance([]);
       } finally {
@@ -200,13 +201,13 @@ const TeacherAttendance: React.FC = () => {
       const payloads = attendance.map((record) => {
         const status = record.status.toUpperCase();
         if (record.attendanceId) {
-          return api.put(`/api/attendance/${record.attendanceId}`, {
+          return api.put(API.ATTENDANCE_RECORD(record.attendanceId), {
             status,
             remarks: record.notes || null
           });
         }
 
-        return api.post('/api/attendance/mark', {
+        return api.post(API.ATTENDANCE_MARK, {
           studentId: record.studentId,
           status,
           date: selectedDate,
@@ -215,15 +216,15 @@ const TeacherAttendance: React.FC = () => {
       });
 
       await Promise.all(payloads);
-      alert('Presences enregistrees.');
+      alert('Présences enregistrées.');
     } catch (err) {
       console.error('Erreur lors de la sauvegarde:', err);
-      alert('Erreur lors de la sauvegarde des presences.');
+      alert('Erreur lors de la sauvegarde des présences.');
     }
   };
 
   const handleExport = () => {
-    alert('Export des presences en cours...');
+    alert('Export des présences en cours...');
   };
 
   const getStatusColor = (status: string) => {
@@ -413,7 +414,7 @@ const TeacherAttendance: React.FC = () => {
       </div>
 
       {loading && (
-        <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">Chargement des presences...</div>
+        <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">Chargement des présences...</div>
       )}
 
       {/* Attendance List */}

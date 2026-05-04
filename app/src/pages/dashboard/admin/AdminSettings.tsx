@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, User, Bell, Shield, Palette, Database, Mail, Info, LogOut, Save, Edit2, X, Check, GraduationCap, ChevronLeft } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { logger } from '../../../lib/logger';
+import { API } from '../../../lib/apiRoutes';
 
 interface SettingSection {
   id: string;
@@ -105,7 +107,7 @@ const AdminSettings: React.FC = () => {
     htmlElement.style.fontSize = fontSizeMap[settings.fontSize];
     localStorage.setItem('fontSize', settings.fontSize);
 
-    console.log('Paramètres d\'apparence appliqués:', settings);
+    logger.log('Paramètres d\'apparence appliqués:', settings);
   };
 
   // Charger et appliquer les paramètres d'apparence sauvegardés au démarrage
@@ -130,7 +132,7 @@ const AdminSettings: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const response = await api.get('/api/settings');
+        const response = await api.get(API.SETTINGS);
         const data = response.data;
         
         if (data.success && data.data) {
@@ -171,7 +173,7 @@ const AdminSettings: React.FC = () => {
       setUsersError('');
 
       try {
-        const response = await api.get('/api/users');
+        const response = await api.get(API.USERS);
         const data = response.data;
         let usersList: any[] = [];
 
@@ -215,42 +217,42 @@ const AdminSettings: React.FC = () => {
       // Sauvegarder selon la section
       if (section === 'security') {
         // Sauvegarder les paramètres de sécurité
-        const response = await api.post('/api/settings/security', securitySettings);
+        const response = await api.post(API.SETTINGS_SECURITY, securitySettings);
         const data = response.data;
-        console.log('Réponse du serveur:', data);
+        logger.log('Réponse du serveur:', data);
 
         if (!data?.success) {
           throw new Error(data?.error || data?.message || 'Erreur lors de la sauvegarde');
         }
 
-        console.log('Paramètres de sécurité sauvegardés:', securitySettings);
+        logger.log('Paramètres de sécurité sauvegardés:', securitySettings);
       } else if (section === 'general') {
         // Sauvegarder les informations générales
-        const response = await api.post('/api/settings/general', collegeInfo);
+        const response = await api.post(API.SETTINGS_GENERAL, collegeInfo);
         const data = response.data;
-        console.log('Réponse du serveur:', data);
+        logger.log('Réponse du serveur:', data);
 
         if (!data?.success) {
           throw new Error(data?.message || 'Erreur lors de la sauvegarde');
         }
 
-        console.log('Informations générales sauvegardées:', collegeInfo);
+        logger.log('Informations générales sauvegardées:', collegeInfo);
       } else if (section === 'notifications') {
         // Sauvegarder les paramètres de notification
-        const response = await api.post('/api/settings/notifications', notificationSettings);
+        const response = await api.post(API.SETTINGS_NOTIFICATIONS, notificationSettings);
         const data = response.data;
-        console.log('Réponse du serveur:', data);
+        logger.log('Réponse du serveur:', data);
 
         if (!data?.success) {
           throw new Error(data?.message || 'Erreur lors de la sauvegarde');
         }
 
-        console.log('Paramètres de notification sauvegardés:', notificationSettings);
+        logger.log('Paramètres de notification sauvegardés:', notificationSettings);
       } else if (section === 'appearance') {
         // Sauvegarder les paramètres d'apparence
-        const response = await api.post('/api/settings/appearance', appearanceSettings);
+        const response = await api.post(API.SETTINGS_APPEARANCE, appearanceSettings);
         const data = response.data;
-        console.log('Réponse du serveur:', data);
+        logger.log('Réponse du serveur:', data);
 
         if (!data?.success) {
           throw new Error(data?.message || 'Erreur lors de la sauvegarde');
@@ -258,29 +260,29 @@ const AdminSettings: React.FC = () => {
 
         // Appliquer les changements d'apparence immédiatement
         applyAppearanceSettings(appearanceSettings);
-        console.log('Paramètres d\'apparence sauvegardés et appliqués:', appearanceSettings);
+        logger.log('Paramètres d\'apparence sauvegardés et appliqués:', appearanceSettings);
       } else if (section === 'database') {
         // Sauvegarder les paramètres de base de données
-        const response = await api.post('/api/settings/database', databaseSettings);
+        const response = await api.post(API.SETTINGS_DATABASE, databaseSettings);
         const data = response.data;
-        console.log('Réponse du serveur:', data);
+        logger.log('Réponse du serveur:', data);
 
         if (!data?.success) {
           throw new Error(data?.message || 'Erreur lors de la sauvegarde');
         }
 
-        console.log('Paramètres de base de données sauvegardés:', databaseSettings);
+        logger.log('Paramètres de base de données sauvegardés:', databaseSettings);
       } else if (section === 'email') {
         // Sauvegarder les paramètres email
-        const response = await api.post('/api/settings/email', emailSettings);
+        const response = await api.post(API.SETTINGS_EMAIL, emailSettings);
         const data = response.data;
-        console.log('Réponse du serveur:', data);
+        logger.log('Réponse du serveur:', data);
 
         if (!data?.success) {
           throw new Error(data?.message || 'Erreur lors de la sauvegarde');
         }
 
-        console.log('Paramètres email sauvegardés:', emailSettings);
+        logger.log('Paramètres email sauvegardés:', emailSettings);
       }
 
       // Afficher le message de succès
@@ -712,13 +714,13 @@ const AdminSettings: React.FC = () => {
         ) : usersError ? (
           <div className="p-4 text-sm text-red-600 dark:text-red-400">{usersError}</div>
         ) : users.length === 0 ? (
-          <div className="p-4 text-sm text-[var(--color-text-muted)]">Aucun utilisateur trouve.</div>
+          <div className="p-4 text-sm text-[var(--color-text-muted)]">Aucun utilisateur trouvé.</div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--color-border)]">
                 <th className="text-left py-3 px-4 text-[var(--color-text-secondary)] font-semibold">Nom</th>
-                <th className="text-left py-3 px-4 text-[var(--color-text-secondary)] font-semibold">Role</th>
+                <th className="text-left py-3 px-4 text-[var(--color-text-secondary)] font-semibold">Rôle</th>
                 <th className="text-left py-3 px-4 text-[var(--color-text-secondary)] font-semibold">Email</th>
                 <th className="text-left py-3 px-4 text-[var(--color-text-secondary)] font-semibold">Statut</th>
                 <th className="text-left py-3 px-4 text-[var(--color-text-secondary)] font-semibold">Actions</th>

@@ -22,27 +22,19 @@ router.get('/', async (req: any, res) => {
   const userId = req.user?.id;
 
   try {
-    if (userRole === 'TEACHER' && userId) {
-        const classes = await (prisma as any).class.findMany({ where: { mainTeacherId: userId }, orderBy: { name: 'asc' } });
-      const mapped: ClassItem[] = [];
-      for (const c of classes) {
-        const currentStudents = await prisma.student.count({ where: { major: c.name } });
-        mapped.push({
-          id: c.id,
-          name: c.name,
-          level: c.level || '',
-          capacity: c.capacity || 0,
-          currentStudents,
-          academicYear: c.academicYearId || '',
-          mainTeacherId: c.mainTeacherId || undefined,
-          mainTeacher: ''
-        });
-      }
-      res.json({ success: true, data: mapped });
-      return;
-    }
+    const whereClause = (userRole === 'TEACHER' && userId) ? { mainTeacherId: userId } : {};
+    const classes = await (prisma as any).class.findMany({ where: whereClause, orderBy: { name: 'asc' } });
 
-      const classes = await (prisma as any).class.findMany({ orderBy: { name: 'asc' } });
+    // Batch-resolve teacher names
+    const teacherIds = classes.map((c: any) => c.mainTeacherId).filter(Boolean);
+    const teacherUsers = teacherIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: teacherIds } },
+          select: { id: true, firstName: true, lastName: true }
+        })
+      : [];
+    const teacherMap = new Map(teacherUsers.map(t => [t.id, [t.firstName, t.lastName].filter(Boolean).join(' ')]));
+
     const mapped: ClassItem[] = [];
     for (const c of classes) {
       const currentStudents = await prisma.student.count({ where: { major: c.name } });
@@ -54,7 +46,7 @@ router.get('/', async (req: any, res) => {
         currentStudents,
         academicYear: c.academicYearId || '',
         mainTeacherId: c.mainTeacherId || undefined,
-        mainTeacher: ''
+        mainTeacher: teacherMap.get(c.mainTeacherId) || ''
       });
     }
     res.json({ success: true, data: mapped });
@@ -390,14 +382,46 @@ router.post('/', authorize(['ADMIN']), async (req, res) => {
     level,
     capacity,
     currentStudents = 0,
-    academicYear,
+    academicYear: academicYearInput,
     mainTeacherId,
     mainTeacher
   } = req.body;
 
-  if (!name || !level || !academicYear) {
-    res.status(400).json({ success: false, error: 'Missing required fields' });
+  const missingFields: string[] = [];
+  if (!name || !String(name).trim()) missingFields.push('nom de la classe');
+  if (!level || !String(level).trim()) missingFields.push('niveau');
+
+  if (missingFields.length > 0) {
+    res.status(400).json({
+      success: false,
+      error: `Champs requis manquants : ${missingFields.join(', ')}`
+    });
     return;
+  }
+
+  // If the admin did not select an academic year, fall back to the active one,
+  // then the most recently created. This keeps the form usable even when the
+  // year dropdown is skipped, and works hand-in-hand with the auto-seed in
+  // GET /api/academic-years.
+  let academicYear: string | null = academicYearInput ? String(academicYearInput) : null;
+  if (!academicYear) {
+    const active = await (prisma as any).academicYear.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true }
+    });
+    const fallback = active || await (prisma as any).academicYear.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { id: true }
+    });
+    if (!fallback) {
+      res.status(400).json({
+        success: false,
+        error: 'Aucune année scolaire disponible. Créez-en une depuis « Années scolaires ».'
+      });
+      return;
+    }
+    academicYear = String(fallback.id);
   }
 
   // Verify teacher assignment uniqueness and teacher validity
@@ -413,6 +437,13 @@ router.post('/', authorize(['ADMIN']), async (req, res) => {
       res.status(400).json({ success: false, error: 'Enseignant principal invalide' });
       return;
     }
+  }
+
+  // Validate academicYear is a valid UUID if provided
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (academicYear && !uuidRegex.test(academicYear)) {
+    res.status(400).json({ success: false, error: 'Format d\'année scolaire invalide. Utilisez l\'identifiant UUID.' });
+    return;
   }
 
   try {

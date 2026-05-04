@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileSpreadsheet, Lock, ChevronLeft, ShieldCheck, X } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 const AdminGradeLocks: React.FC = () => {
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ const AdminGradeLocks: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const response = await api.get('/api/grade-locks/summary');
+      const response = await api.get(API.GRADE_LOCKS_SUMMARY);
       const data = response.data;
       setSummary(data.data || summary);
     } catch (err: any) {
@@ -28,7 +29,7 @@ const AdminGradeLocks: React.FC = () => {
 
   const lockPeriod = async () => {
     try {
-      await api.post('/api/grade-locks/lock', lockData);
+      await api.post(API.GRADE_LOCKS_LOCK, lockData);
       setShowLockModal(false);
       setLockData({ period: '', reason: '' });
       fetchSummary();

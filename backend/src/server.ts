@@ -35,6 +35,7 @@ const startServer = async () => {
   const { default: homepageRoutes } = await import('./routes/homepage');
   const { default: parentStudentRoutes } = await import('./routes/parentStudent');
   const { default: attendanceRoutes } = await import('./routes/attendance');
+  const { default: teacherAttendanceRoutes } = await import('./routes/teacherAttendance');
   const { default: messagesRoutes } = await import('./routes/messages');
   const { default: behaviorRoutes } = await import('./routes/behavior');
   const { default: homeworkRoutes } = await import('./routes/homework');
@@ -48,6 +49,35 @@ const startServer = async () => {
   const { default: securityRoutes } = await import('./routes/security');
 
   const app = express();
+
+  // ── Trust proxy (P0-5) ────────────────────────────────────────────────
+  // Render (and any production reverse-proxy host) forwards client IPs
+  // through `X-Forwarded-For`. Without this setting:
+  //   - express-rate-limit sees the proxy IP for every request → either
+  //     a single shared bucket (DoS auto-infligé) or trivial bypass.
+  //   - Audit logs and security alerts log the load-balancer IP instead
+  //     of the real client.
+  // Default behaviour:
+  //   * production → trust the first hop (Render gives us exactly one).
+  //   * other envs → don't trust (otherwise dev clients can spoof X-F-F).
+  // Override with TRUST_PROXY=<n>|true|false|<ip-list>.
+  const trustProxyEnv = process.env.TRUST_PROXY;
+  if (trustProxyEnv !== undefined && trustProxyEnv !== '') {
+    // numeric string → number of hops
+    const parsedNum = Number(trustProxyEnv);
+    if (Number.isFinite(parsedNum) && Number.isInteger(parsedNum) && parsedNum >= 0) {
+      app.set('trust proxy', parsedNum);
+    } else if (trustProxyEnv === 'true') {
+      app.set('trust proxy', true);
+    } else if (trustProxyEnv === 'false') {
+      app.set('trust proxy', false);
+    } else {
+      // raw passthrough (e.g. 'loopback', 'linklocal,uniquelocal', or an IP/CIDR list)
+      app.set('trust proxy', trustProxyEnv);
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+  }
 
   // ── Request ID for distributed tracing ────────────────────────────────
   app.use((req, res, next) => {
@@ -150,6 +180,7 @@ const startServer = async () => {
   app.use('/api/admin/homepage', homepageRoutes);
   app.use('/api/parent-students', parentStudentRoutes);
   app.use('/api/attendance', attendanceRoutes);
+  app.use('/api/teacher-attendance', teacherAttendanceRoutes);
   app.use('/api/messages', messagesRoutes);
   app.use('/api/behavior', behaviorRoutes);
   app.use('/api/homework', homeworkRoutes);
@@ -191,21 +222,24 @@ const startServer = async () => {
 };
 
 startServer().catch((error) => {
-  // Print full error details to stdout to aid debugging (ts-node/Prisma diagnostics can be nested)
-  try {
-    // Print stack if available
-    if (error && (error as any).stack) {
-      // eslint-disable-next-line no-console
-      console.error((error as any).stack);
+  // Build a structured payload that survives log aggregators (no console.error,
+  // no untagged JSON.stringify dumps that break JSONL parsers).
+  const payload: Record<string, unknown> = {
+    name: error?.name,
+    message: error?.message,
+    stack: error?.stack,
+  };
+
+  // Capture non-enumerable Prisma / Node error fields the default
+  // serializer might miss (code, errno, syscall, clientVersion, …).
+  if (error && typeof error === 'object') {
+    for (const key of Object.getOwnPropertyNames(error)) {
+      if (!(key in payload)) {
+        payload[key] = (error as any)[key];
+      }
     }
-    // Attempt JSON serialization including non-enumerable properties
-    // eslint-disable-next-line no-console
-    console.error('Startup error full:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to stringify startup error', e);
   }
 
-  logger.fatal({ error }, 'Fatal startup error');
+  logger.fatal(payload, 'Fatal startup error');
   process.exit(1);
 });

@@ -2,7 +2,9 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 import { 
   BookOpen,
@@ -41,6 +43,7 @@ type SubjectAssignment = {
 
 const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
+  const { branding } = useBranding();
   const location = useLocation();
   const refreshTick = useLiveRefresh(15000);
   const [classCards, setClassCards] = useState<ClassCard[]>([]);
@@ -87,8 +90,8 @@ const TeacherDashboard: React.FC = () => {
         setLoadError('');
         setLoadingData(true);
         const [scheduleResponse, subjectsResponse] = await Promise.all([
-          api.get(`/api/schedules/teacher/${user.teacher.id}`),
-          api.get('/api/subjects/teacher/assignments')
+          api.get(API.SCHEDULES_TEACHER(user.teacher.id)),
+          api.get(API.SUBJECTS_TEACHER_ASSIGNMENTS)
         ]);
 
         const result = scheduleResponse.data;
@@ -222,7 +225,7 @@ const TeacherDashboard: React.FC = () => {
             </div>
 
             <div className="oak-hero-banner w-full lg:w-[38%]">
-              <img src="/campus-hero.png" alt="Campus" className="absolute inset-0 w-full h-full object-cover" />
+              <img src={branding.brand.heroBannerUrl} alt={branding.brand.name} className="absolute inset-0 w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
               <div className="absolute bottom-4 left-4 right-4 text-white">
                 <div className="text-sm/5 opacity-90">Bonjour {user?.firstName}</div>

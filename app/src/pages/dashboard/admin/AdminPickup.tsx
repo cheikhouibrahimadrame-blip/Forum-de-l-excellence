@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react';
 import { Truck, Plus, Edit2, Trash2, AlertCircle, Check } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Card } from '../../../components/ui/card';
+import UserSelect from '../../../components/forms/UserSelect';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface AuthorizedPickup {
   id: string;
@@ -55,8 +57,8 @@ const AdminPickup: React.FC = () => {
     try {
       setLoading(true);
       const [authRes, logsRes] = await Promise.all([
-        api.get('/api/pickup/authorized'),
-        api.get('/api/pickup/logs/history')
+        api.get(API.PICKUP_AUTHORIZED),
+        api.get(API.PICKUP_LOGS_HISTORY)
       ]);
 
       setAuthorized(authRes.data?.data || []);
@@ -84,9 +86,9 @@ const AdminPickup: React.FC = () => {
       };
 
       if (editingId) {
-        await api.put(`/api/pickup/authorized/${editingId}`, payload);
+        await api.put(API.PICKUP_AUTHORIZED_ITEM(editingId), payload);
       } else {
-        await api.post('/api/pickup/authorized/add', payload);
+        await api.post(API.PICKUP_AUTHORIZED_ADD, payload);
       }
 
       setFormData({
@@ -107,7 +109,7 @@ const AdminPickup: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Confirmer la suppression ?')) return;
     try {
-      await api.delete(`/api/pickup/authorized/${id}`);
+      await api.delete(API.PICKUP_AUTHORIZED_ITEM(id));
       fetchData();
     } catch (err: any) {
       setError(err?.response?.data?.error || err.message);
@@ -116,7 +118,7 @@ const AdminPickup: React.FC = () => {
 
   const toggleActive = async (id: string, currentActive: boolean) => {
     try {
-      await api.put(`/api/pickup/authorized/${id}`, { isActive: !currentActive });
+      await api.put(API.PICKUP_AUTHORIZED_ITEM(id), { isActive: !currentActive });
       fetchData();
     } catch (err: any) {
       setError(err?.response?.data?.error || err.message);
@@ -176,14 +178,17 @@ const AdminPickup: React.FC = () => {
               <form onSubmit={handleSubmit} className="bg-gray-50 p-6 rounded-lg mb-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      ID Élève *
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                      Élève *
                     </label>
-                    <input
-                      type="text"
+                    <UserSelect
+                      role="STUDENT"
+                      valueKind="studentId"
                       value={formData.studentId}
-                      onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-navy focus:border-transparent"
+                      onChange={(id) => setFormData({ ...formData, studentId: id })}
+                      placeholder="Sélectionner un élève"
+                      emptyHint="Aucun élève disponible"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-navy focus:border-transparent text-gray-900 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-600"
                       required
                     />
                   </div>

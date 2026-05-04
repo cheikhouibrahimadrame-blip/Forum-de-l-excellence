@@ -1,7 +1,9 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBranding } from '../../contexts/BrandingContext';
+import { safeFromPath } from '../../lib/safeRedirect';
 import { 
   Mail, 
   Lock, 
@@ -22,6 +24,8 @@ const LoginPage: React.FC = () => {
 
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { branding } = useBranding();
 
   useEffect(() => {
     if (!user) return;
@@ -37,9 +41,14 @@ const LoginPage: React.FC = () => {
       STUDENT: '/student',
       PARENT: '/parent'
     };
+    const fallback = roleRoutes[user.role] || '/';
 
-    navigate(roleRoutes[user.role] || '/', { replace: true });
-  }, [user, navigate]);
+    // P2-2: respect the URL the user was trying to reach before being
+    // redirected to /login. ProtectedRoute stores it in state.from.
+    // safeFromPath rejects open-redirect tricks and auth-page loops.
+    const stateFrom = (location.state as { from?: unknown } | null)?.from;
+    navigate(safeFromPath(stateFrom, fallback), { replace: true });
+  }, [user, navigate, location.state]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (error) {
@@ -73,8 +82,8 @@ const LoginPage: React.FC = () => {
     <div className="w-full">
       <div className="text-center mb-8">
         <img 
-          src="/logo.jpeg" 
-          alt="Forum de L'excellence" 
+          src={branding.brand.logoUrl} 
+          alt={branding.brand.name} 
           className="w-16 h-16 rounded-lg object-cover mx-auto mb-4"
         />
         <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
@@ -170,7 +179,7 @@ const LoginPage: React.FC = () => {
 
       <div className="mt-6 text-center">
         <p className="text-sm text-[var(--color-text-muted)]">
-          Les comptes sont créés uniquement par l'admin. Contactez l'administration si vous n'avez pas reçu vos accès.
+          {branding.loginNotice}
         </p>
       </div>
     </div>

@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BarChart3, Plus, Edit, Trash2, Download, X, Calendar, Users, ChevronLeft } from 'lucide-react';
 import { downloadPDF } from '../../../utils/pdfGenerator';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface Report {
   id: string;
@@ -19,6 +21,7 @@ interface Report {
 const AdminReports: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { branding } = useBranding();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -91,7 +94,7 @@ const AdminReports: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const response = await api.get('/api/reports');
+      const response = await api.get(API.REPORTS);
       const data = response.data;
       const payload = Array.isArray(data) ? data : data.data || [];
       setReports(payload);
@@ -104,7 +107,7 @@ const AdminReports: React.FC = () => {
 
   const createReport = async (payload: { name: string; type: Report['type']; department: string; generatedBy: string; }) => {
     try {
-      await api.post('/api/reports', payload);
+      await api.post(API.REPORTS, payload);
       await fetchReports();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la creation');
@@ -113,7 +116,7 @@ const AdminReports: React.FC = () => {
 
   const updateReport = async (id: string, payload: { name: string; type: Report['type']; department: string; generatedBy: string; }) => {
     try {
-      await api.put(`/api/reports/${id}`, payload);
+      await api.put(API.REPORT(id), payload);
       await fetchReports();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la mise a jour');
@@ -122,7 +125,7 @@ const AdminReports: React.FC = () => {
 
   const deleteReport = async (id: string) => {
     try {
-      await api.delete(`/api/reports/${id}`);
+      await api.delete(API.REPORT(id));
       await fetchReports();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la suppression');
@@ -151,7 +154,7 @@ const AdminReports: React.FC = () => {
 
       <div class="footer">
         <p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
-        <p><span class="logo">Forum de L'excellence</span> - Système de Gestion Académique</p>
+        <p>${branding.brand.pdfFooterText}</p>
       </div>
     `;
 

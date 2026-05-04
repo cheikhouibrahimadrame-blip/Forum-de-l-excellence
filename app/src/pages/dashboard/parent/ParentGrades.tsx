@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Award, AlertCircle, CheckCircle, User, Download, Printer, ChevronLeft } from 'lucide-react';
 import { downloadPDF } from '../../../utils/pdfGenerator';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface LinkedStudent {
   id: string;
@@ -32,6 +34,7 @@ interface Grade {
 
 const ParentGrades: React.FC = () => {
   const navigate = useNavigate();
+  const { branding } = useBranding();
   const [selectedChild, setSelectedChild] = useState('all');
   const [selectedPeriod, setSelectedPeriod] = useState('current');
   const [linkedStudents, setLinkedStudents] = useState<LinkedStudent[]>([]);
@@ -42,7 +45,7 @@ const ParentGrades: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const studentsRes = await api.get('/api/parent-students/my-students');
+        const studentsRes = await api.get(API.PARENT_STUDENTS_MY);
         const studentsData = studentsRes.data;
 
         if (studentsData.success && studentsData.data.students) {
@@ -50,7 +53,7 @@ const ParentGrades: React.FC = () => {
 
           const allGrades: Grade[] = [];
           for (const student of studentsData.data.students) {
-            const gradesRes = await api.get(`/api/grades/student/${student.id}`);
+            const gradesRes = await api.get(API.GRADES_BY_STUDENT(student.id));
             const gradesData = gradesRes.data;
             const courses = Array.isArray(gradesData?.data?.courses) ? gradesData.data.courses : [];
             const studentName = `${student.user.firstName} ${student.user.lastName}`;
@@ -78,7 +81,7 @@ const ParentGrades: React.FC = () => {
           setGrades(allGrades);
         }
       } catch (err) {
-        console.error('Erreur lors du chargement des donnees:', err);
+        console.error('Erreur lors du chargement des données:', err);
         setError('Erreur de connexion au serveur');
       } finally {
         setLoading(false);
@@ -253,7 +256,7 @@ const ParentGrades: React.FC = () => {
 
           <div class="footer">
             <p>Genere le ${new Date().toLocaleDateString('fr-FR')}</p>
-            <p>Forum de L'excellence - Systeme de Gestion Academique</p>
+            <p>${branding.brand.pdfFooterText}</p>
           </div>
         </body>
         </html>
@@ -338,7 +341,7 @@ const ParentGrades: React.FC = () => {
           ) : linkedStudents.length === 0 ? (
             <div className="card p-8 text-center">
               <AlertCircle className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-muted)]" />
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Aucun eleve lie</h3>
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Aucun élève lié</h3>
               <p className="text-[var(--color-text-secondary)]">
                 Veuillez contacter l'administration pour lier votre compte.
               </p>

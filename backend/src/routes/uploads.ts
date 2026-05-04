@@ -8,13 +8,18 @@ import logger from '../utils/logger';
 const router = express.Router();
 
 // ── Allowed extensions & MIME types (strict allowlist) ──────────────────
+// P1-4: SVG removed. SVG is XML and can embed JavaScript through many vectors
+// (<script>, <foreignObject>, on* event handlers, <use href="javascript:…">,
+// <style>@import url(javascript:…), etc.). The previous heuristic only blocked
+// literal `<script>` tags. Until we wire DOMPurify (server-side, SVG strict
+// mode) we drop SVG from the allowlist; raster formats cover all admin needs.
 const ALLOWED_EXTENSIONS = new Set([
-  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif',
   '.mp4', '.webm', '.mov', '.avi'
 ]);
 
 const ALLOWED_MIME_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/svg+xml',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
   'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'
 ]);
 
@@ -73,25 +78,12 @@ async function validateMagicBytes(filePath: string, declaredMime: string): Promi
     const { fileTypeFromFile } = await import('file-type');
     const detected = await fileTypeFromFile(filePath);
 
-    // SVG files are XML-based, file-type can't detect them — skip
-    if (declaredMime === 'image/svg+xml') {
-      // Read first 256 bytes and check it smells like SVG/XML
-      const head = fs.readFileSync(filePath, { encoding: 'utf8', flag: 'r' }).slice(0, 512);
-      const looksLikeSvg = /^\s*(<\?xml|<svg)/i.test(head);
-      // Reject if it contains <script> tags (XSS vector)
-      if (/<script/i.test(head)) {
-        logger.warn({ filePath }, 'SVG contains <script> tag — rejected');
-        return false;
-      }
-      return looksLikeSvg;
-    }
-
     if (!detected) {
       logger.warn({ filePath, declaredMime }, 'Magic bytes: unable to detect file type');
       return false;
     }
 
-    // Verify the detected MIME matches what was declared
+    // Verify the detected MIME matches an allowed type.
     if (!ALLOWED_MIME_TYPES.has(detected.mime)) {
       logger.warn({ filePath, declaredMime, detectedMime: detected.mime }, 'Magic bytes mismatch');
       return false;
@@ -136,9 +128,13 @@ router.post(
       return;
     }
 
-    const host = `${req.protocol}://${req.get('host')}`;
+    // P1-3: Use a trusted public URL from env, not the Host header.
+    // `req.get('host')` is attacker-controlled (Host injection) and any URL
+    // built from it gets persisted into the JSON content stores forever.
+    // Falls back to the request origin when BACKEND_PUBLIC_URL is unset (dev).
+    const publicBase = (process.env.BACKEND_PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
     const data = validFiles.map(file => ({
-      url: `${host}/uploads/campus-life/${file.filename}`,
+      url: `${publicBase}/uploads/campus-life/${file.filename}`,
       type: file.mimetype.startsWith('video/') ? 'video' : 'image',
       alt: file.originalname
     }));

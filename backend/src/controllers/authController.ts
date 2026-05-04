@@ -8,6 +8,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/audit';
 import { emitSecurityAlert } from '../utils/securityAlerts';
 import { getCurrentSecrets, verifyTokenWithFallback } from '../utils/secretManager';
+import { sendPasswordResetEmail } from '../services/mailService';
 import logger from '../utils/logger';
 
 const ACCESS_TOKEN_TTL = process.env.JWT_EXPIRES_IN || '60m';
@@ -154,7 +155,14 @@ const generateTokens = async (user: any, req: Request, res: Response, sessionId?
   const refreshToken = createRefreshToken(user.id, activeSessionId);
   const refreshHash = hashToken(refreshToken);
 
-  await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+  // P1-11: only clear refresh tokens bound to THIS session.
+  // - Fresh login on a new session → no-op (sessionId is brand new).
+  // - Refresh-rotation on an existing session → deletes the previous token
+  //   so the new one is the only valid refresh credential for that session.
+  // Tokens for other concurrent sessions on other devices stay alive.
+  await prisma.refreshToken.deleteMany({
+    where: { userId: user.id, sessionId: activeSessionId }
+  });
   await prisma.refreshToken.create({
     data: {
       userId: user.id,
@@ -254,8 +262,19 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // P1-11: scope session revocation to the current device. Logging in on
+    // a laptop must NOT silently sign the user out of their phone.
+    //   - With a device cookie → revoke only sessions bound to that device.
+    //   - Without one → revoke only legacy sessions that have no device
+    //     binding (cleanup), preserving every device-bound session.
+    const deviceId = getDeviceId(req);
+    const deviceIdHashForLogin = deviceId ? hashDeviceId(deviceId) : null;
     await prisma.userSession.updateMany({
-      where: { userId: user.id, revokedAt: null },
+      where: {
+        userId: user.id,
+        revokedAt: null,
+        deviceIdHash: deviceIdHashForLogin
+      },
       data: { revokedAt: new Date() }
     });
 
@@ -746,12 +765,34 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const resetLink = `${frontendUrl}/reset-password?token=${rawToken}`;
 
-    logger.info({ userId: user.id, resetLink }, 'Password reset link generated');
+    // P0-1: never log the reset link / token in cleartext. Send the email
+    // through the mail service instead. The full email address is fetched
+    // separately to keep the original `select` minimal (id, isActive only).
+    const userWithEmail = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { email: true }
+    });
+
+    let delivered = false;
+    if (userWithEmail?.email) {
+      const result = await sendPasswordResetEmail(userWithEmail.email, resetLink);
+      delivered = result.delivered;
+    }
+
+    logger.info(
+      { userId: user.id, delivered },
+      'Password reset link generated'
+    );
+
+    // Dev convenience: when SMTP is not configured (e.g. local development
+    // without a mail server) we still return the link in the response body
+    // so engineers can test the flow. Never in production.
+    const isDev = process.env.NODE_ENV !== 'production';
 
     res.json({
       success: true,
       message: genericMessage,
-      ...(process.env.NODE_ENV !== 'production' ? { data: { resetLink } } : {})
+      ...(isDev && !delivered ? { data: { resetLink } } : {})
     });
   } catch (error) {
     logger.error({ error }, 'Forgot password error');

@@ -24,6 +24,7 @@ model User {
   receivedAppointments  Appointment[]        @relation("Recipient")
   requestedAppointments Appointment[]        @relation("Requester")
   markedAttendance      Attendance[]         @relation("AttendanceMarkedBy")
+  markedTeacherAttendance TeacherAttendance[] @relation("TeacherAttendanceMarkedBy")
   auditLogs             AuditLog[]
   homeworkChecked       HomeworkSubmission[] @relation("HomeworkCheckedBy")
   receivedMessages      Message[]            @relation("MessageReceiver")
@@ -83,8 +84,12 @@ model ParentStudent {
   studentId         String  @db.Uuid
   relationship      String  @db.VarChar(50)
   isPrimaryContact  Boolean @default(false)
-  canAccessGrades   Boolean @default(true)
-  canAccessSchedule Boolean @default(true)
+  // P3-6 (audit, 30 avr. 2026): canAccessGrades / canAccessSchedule were
+  // dropped. They were defaulted to true on create, never settable via
+  // the admin UI or any update endpoint, and never consulted by the
+  // grade/schedule readers — pure footgun for future maintainers. If
+  // per-flag perms are needed later, re-add them together with the
+  // enforcement code (see audit P3-6).
   parent            Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
   student           Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
@@ -109,6 +114,7 @@ model Teacher {
   grades           Grade[]
   homeworks        Homework[]    @relation("TeacherHomework")
   schedules        Schedule[]
+  attendance       TeacherAttendance[] @relation("TeacherAttendanceTeacher")
   department       Department?   @relation("DepartmentTeachers", fields: [departmentId], references: [id])
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -224,6 +230,9 @@ model Grade {
   student        Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacher        Teacher        @relation(fields: [teacherId], references: [id])
 
+  // P1-12: prevent duplicate grade rows. Without this, double-clicks or
+  // network retries silently create multiple rows for the same assignment.
+  @@unique([studentId, courseId, assignmentName])
   @@index([studentId])
   @@index([courseId])
   @@index([teacherId])
@@ -297,6 +306,27 @@ model Attendance {
 
   @@index([studentId])
   @@index([courseId])
+  @@index([date])
+  @@index([markedById])
+}
+
+/// Teacher attendance is tracked separately from students because:
+///  - The underlying relations are distinct (Teacher ≠ Student).
+///  - Admin workflows (HR-style presence tracking) differ from classroom rollcall.
+///  - Keeping the tables decoupled avoids polymorphic joins and keeps indexes tight.
+model TeacherAttendance {
+  id         String           @id @default(uuid()) @db.Uuid
+  teacherId  String           @db.Uuid
+  date       DateTime         @db.Date
+  status     AttendanceStatus
+  markedById String           @db.Uuid
+  remarks    String?
+  createdAt  DateTime         @default(now())
+  markedBy   User             @relation("TeacherAttendanceMarkedBy", fields: [markedById], references: [id])
+  teacher    Teacher          @relation("TeacherAttendanceTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, date])
+  @@index([teacherId])
   @@index([date])
   @@index([markedById])
 }

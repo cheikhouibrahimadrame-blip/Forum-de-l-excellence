@@ -14,6 +14,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 
 interface Subject {
   id: string;
@@ -140,9 +141,9 @@ const AdminSubjects: React.FC = () => {
       setError('');
 
       const [subjectsResponse, classesResponse, yearsResponse] = await Promise.all([
-        api.get('/api/subjects'),
-        api.get('/api/classes'),
-        api.get('/api/academic-years')
+        api.get(API.SUBJECTS),
+        api.get(API.CLASSES),
+        api.get(API.ACADEMIC_YEARS)
       ]);
 
       const data = subjectsResponse.data;
@@ -174,7 +175,7 @@ const AdminSubjects: React.FC = () => {
 
   const createSubject = async (payload: Omit<Subject, 'id'>) => {
     try {
-      await api.post('/api/subjects', payload);
+      await api.post(API.SUBJECTS, payload);
       await fetchSubjects();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la création');
@@ -183,7 +184,7 @@ const AdminSubjects: React.FC = () => {
 
   const updateSubject = async (id: string, payload: Subject) => {
     try {
-      await api.put(`/api/subjects/${id}`, payload);
+      await api.put(API.SUBJECT(id), payload);
       await fetchSubjects();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la mise à jour');
@@ -192,7 +193,7 @@ const AdminSubjects: React.FC = () => {
 
   const deleteSubject = async (id: string) => {
     try {
-      await api.delete(`/api/subjects/${id}`);
+      await api.delete(API.SUBJECT(id));
       await fetchSubjects();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors de la suppression');
@@ -212,7 +213,7 @@ const AdminSubjects: React.FC = () => {
     try {
       setAssignLoading(true);
       setError('');
-      await api.post(`/api/subjects/${assigningSubject.id}/assign`, {
+      await api.post(API.SUBJECT_ASSIGN(assigningSubject.id), {
         classroomId: selectedClass.id,
         classroomName: selectedClass.name,
         teacherId: selectedClass.mainTeacherId,

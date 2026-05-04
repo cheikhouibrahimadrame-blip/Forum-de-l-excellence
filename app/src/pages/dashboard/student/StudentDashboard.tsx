@@ -2,7 +2,9 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { api } from '../../../lib/api';
+import { API } from '../../../lib/apiRoutes';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 import { 
   Award,
@@ -32,6 +34,7 @@ type EventItem = {
 
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
+  const { branding } = useBranding();
   const location = useLocation();
   const refreshTick = useLiveRefresh(15000);
   const [stats, setStats] = useState([
@@ -82,8 +85,8 @@ const StudentDashboard: React.FC = () => {
         setLoadingData(true);
 
         const [gradesRes, scheduleRes] = await Promise.all([
-          api.get(`/api/grades/student/${user.student.id}`),
-          api.get(`/api/schedules/student/${user.student.id}`)
+          api.get(API.GRADES_BY_STUDENT(user.student.id)),
+          api.get(API.SCHEDULES_STUDENT(user.student.id))
         ]);
 
         let overallPercentage: number | null = null;
@@ -212,7 +215,7 @@ const StudentDashboard: React.FC = () => {
             </div>
 
             <div className="oak-hero-banner w-full lg:w-[38%]">
-              <img src="/campus-hero.png" alt="Campus" className="absolute inset-0 w-full h-full object-cover" />
+              <img src={branding.brand.heroBannerUrl} alt={branding.brand.name} className="absolute inset-0 w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
               <div className="absolute bottom-4 left-4 right-4 text-white">
                 <div className="text-sm/5 opacity-90">Bonjour {user?.firstName}</div>

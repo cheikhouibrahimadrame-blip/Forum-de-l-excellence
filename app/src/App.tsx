@@ -1,9 +1,12 @@
 import type React from 'react';
 import { lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { BrandingProvider } from './contexts/BrandingContext';
 import { ScrollToTop } from './components/ScrollToTop';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import NotFoundPage from './pages/NotFoundPage';
 import './App.css';
 
 // Layouts (kept eager — they wrap every page)
@@ -76,16 +79,15 @@ const AdminYears = lazy(() => import('./pages/dashboard/admin/AdminYears'));
 const AdminAdmissionsContent = lazy(() => import('./pages/dashboard/admin/AdminAdmissionsContent'));
 const AdminProgramsContent = lazy(() => import('./pages/dashboard/admin/AdminProgramsContent'));
 const AdminCampusLifeContent = lazy(() => import('./pages/dashboard/admin/AdminCampusLifeContent'));
+const AdminBrandingContent = lazy(() => import('./pages/dashboard/admin/AdminBrandingContent'));
 const AdminParentsStudents = lazy(() => import('./pages/dashboard/admin/AdminParentsStudents'));
 const AdminSchedules = lazy(() => import('./pages/dashboard/admin/AdminSchedules'));
 const AdminGradeLocks = lazy(() => import('./pages/dashboard/admin/AdminGradeLocks'));
 const AdminAppointments = lazy(() => import('./pages/dashboard/admin/AdminAppointments'));
 const AdminUsers = lazy(() => import('./pages/dashboard/admin/AdminUsers'));
-const AdminPrograms = lazy(() => import('./pages/dashboard/admin/AdminPrograms'));
-const AdminCourses = lazy(() => import('./pages/dashboard/admin/AdminCourses'));
 const AdminAttendance = lazy(() => import('./pages/dashboard/admin/AdminAttendance'));
 const AdminHealth = lazy(() => import('./pages/dashboard/admin/AdminHealth'));
-const AdminBehavior = lazy(() => import('./pages/dashboard/admin/AdminBehavior'));
+const AdminBulletins = lazy(() => import('./pages/dashboard/admin/AdminBulletins'));
 const AdminPickup = lazy(() => import('./pages/dashboard/admin/AdminPickup'));
 
 // =================================================================
@@ -103,10 +105,22 @@ const ProtectedRoute: React.FC<{ allowedRoles: string[]; children: React.ReactNo
   children
 }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
   const roleRoute = user ? `/${user.role.toLowerCase()}` : '/login';
 
   if (loading) return <LoadingSpinner />;
-  if (!user) return <Navigate to="/login" replace />;
+  // P2-2: remember the originally-requested URL so LoginPage can redirect
+  // the user back here after authentication. `state.from` is read in
+  // `LoginPage` and passed to `navigate(..., { replace: true })`.
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
+  }
   if (user.mustChangePassword) return <Navigate to="/change-password" replace />;
   if (!allowedRoles.includes(user.role)) return <Navigate to={roleRoute} replace />;
 
@@ -126,8 +140,12 @@ function AppContent() {
   return (
     <Router>
       <ScrollToTop />
-      <Suspense fallback={<LoadingSpinner />}>
-        <Routes>
+      {/* P2-1: catch chunk-load failures + runtime errors from any lazy
+          dashboard page so the user sees a recoverable card instead of
+          a blank screen. */}
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes>
           {/* Public Routes */}
           <Route path="/" element={<PublicRoute><PublicLayout><HomePage /></PublicLayout></PublicRoute>} />
           <Route path="/programs" element={<PublicRoute><PublicLayout><ProgramsPage /></PublicLayout></PublicRoute>} />
@@ -184,13 +202,16 @@ function AppContent() {
           <Route path="/admin/classes" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminClasses /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/subjects" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminSubjects /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/years" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminYears /></DashboardLayout></ProtectedRoute>} />
-          <Route path="/admin/programs" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminPrograms /></DashboardLayout></ProtectedRoute>} />
-          <Route path="/admin/courses" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminCourses /></DashboardLayout></ProtectedRoute>} />
+          {/* P2-4: legacy /admin/programs and /admin/courses redirect to the
+              real primary-school equivalents instead of rendering dead stubs. */}
+          <Route path="/admin/programs" element={<Navigate to="/admin/classes" replace />} />
+          <Route path="/admin/courses" element={<Navigate to="/admin/subjects" replace />} />
           <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminReports /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/mainpage" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminMainPage /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/content/admissions" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminAdmissionsContent /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/content/programs" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminProgramsContent /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/content/campuslife" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminCampusLifeContent /></DashboardLayout></ProtectedRoute>} />
+          <Route path="/admin/branding" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminBrandingContent /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminSettings /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/parents-students" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminParentsStudents /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/schedules" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminSchedules /></DashboardLayout></ProtectedRoute>} />
@@ -198,13 +219,17 @@ function AppContent() {
           <Route path="/admin/appointments" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminAppointments /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/attendance" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminAttendance /></DashboardLayout></ProtectedRoute>} />
           <Route path="/admin/health" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminHealth /></DashboardLayout></ProtectedRoute>} />
-          <Route path="/admin/behavior" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminBehavior /></DashboardLayout></ProtectedRoute>} />
+          <Route path="/admin/bulletins" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminBulletins /></DashboardLayout></ProtectedRoute>} />
+          <Route path="/admin/behavior" element={<Navigate to="/admin/bulletins" replace />} />
           <Route path="/admin/pickup" element={<ProtectedRoute allowedRoles={['ADMIN']}><DashboardLayout><AdminPickup /></DashboardLayout></ProtectedRoute>} />
 
-          {/* Default redirect */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* P2-3: real 404 page (with role-aware "back to dashboard" CTA)
+              instead of a silent redirect that ejected the user out of
+              their current dashboard. */}
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
-      </Suspense>
+        </Suspense>
+      </ErrorBoundary>
     </Router>
   );
 }
@@ -212,9 +237,11 @@ function AppContent() {
 function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <BrandingProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </BrandingProvider>
     </ThemeProvider>
   );
 }

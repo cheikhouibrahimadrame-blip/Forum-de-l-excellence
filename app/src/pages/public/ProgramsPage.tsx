@@ -2,6 +2,7 @@ import type React from 'react';
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { API } from '../../lib/apiRoutes';
 import {
   BookOpen, Clock, Users, ChevronRight, Search, Filter,
   Sparkles, GraduationCap, Award, Lightbulb, PlayCircle, Phone, Star,
@@ -58,7 +59,7 @@ const ProgramsPage: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get('/api/pages/programs');
+        const res = await api.get(API.PAGES('programs'));
         if (!cancelled && res.data?.success && res.data.data) {
           setContent(mergeProgramsContent(res.data.data));
         }
