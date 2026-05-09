@@ -1637,3 +1637,128 @@
     transform: none !important;
   }
 }
+
+/* ============================================================
+   MOBILE RESPONSIVE (≤ 640px = Tailwind `sm` breakpoint)
+   Reduce horizontal padding and lift max-width caps so dashboard
+   pages, modals, tables and forms use the full viewport width
+   instead of looking centered / cramped on phones.
+
+   Above 640px nothing changes — desktop/tablet layouts are
+   preserved as-is.
+   ============================================================ */
+@media (max-width: 640px) {
+  /* --- Fix 1 : page wrappers --------------------------------
+     `.section-content` plafonne à 1280px sur desktop avec 24px
+     de padding latéral. Sur mobile, le plafond n'a aucun sens
+     et le padding mange 13% de l'écran. On tombe à 12px. La
+     variante "narrow" (800px) devient full-width pour que les
+     formulaires ne flottent pas dans une colonne étroite. */
+  .section-content,
+  .section-content-narrow {
+    max-width: 100%;
+    padding-inline: var(--space-3);
+  }
+
+  /* --- Fix 1bis : topbar ------------------------------------
+     Aligne la barre du haut sur le nouveau gabarit. */
+  .topbar {
+    padding: 0 var(--space-3);
+  }
+
+  /* --- Fix 2 : cards & tables -------------------------------
+     Le padding interne se cumulait avec celui du wrapper et
+     produisait des cartes étroites avec beaucoup de marge
+     blanche. On compresse les composants nommés. Les paddings
+     Tailwind utilisés à la pièce dans les pages (`p-4`, `p-6`,
+     etc.) restent intacts. */
+  .kpi-card {
+    padding: var(--space-4);
+  }
+
+  .data-table th,
+  .data-table td {
+    padding-inline: var(--space-3);
+  }
+
+  /* Tableaux : si une page n'a pas wrappé sa table dans un
+     container scrollable, on autorise au moins le scroll
+     horizontal au lieu de tout déborder. */
+  .data-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* --- Fix 3 : modales --------------------------------------
+     Les modales du projet utilisent `fixed inset-0 ... p-4`
+     comme overlay, avec une carte interne `max-w-md w-full`.
+     Le `p-4` ajoutait 16px × 2 de marges blanches autour de
+     la modale sur mobile, ce qui rendait la carte petite et
+     "flottante". On réduit cet overlay padding sous 640px et
+     on s'assure que le contenu peut scroller si nécessaire. */
+  .fixed.inset-0.z-50 {
+    padding: var(--space-3);
+  }
+
+  /* --- Fix 4 (bonus) : inputs -------------------------------
+     iOS Safari zoome automatiquement sur un input dont la
+     font-size est < 16px. `.input-field` utilise `--text-sm`
+     qui clamp ~14px sur petit écran → on force 16px sur
+     mobile pour tuer l'auto-zoom à la mise au focus. */
+  .input-field {
+    font-size: 16px;
+  }
+
+  /* --- Fix 5a : taille des titres de page -------------------
+     `text-3xl` (30px) est trop grand pour les titres de page
+     sur mobile (≤ 640px). On descend à 24px pour que des
+     titres longs comme "Gestion des Notes" tiennent sur une
+     seule ligne. Limité à `.section-content` pour ne pas
+     affecter les hero/landing pages. */
+  .section-content h1.text-3xl {
+    font-size: 1.5rem;
+    line-height: 1.3;
+  }
+}
+
+/* ============================================================
+   MOBILE + TABLETTE PORTRAIT (≤ 1023px = sous Tailwind `lg`)
+   Headers de page dashboard sans breakpoint responsive.
+   On limite à < lg pour ne TOUCHER NI laptops NI tablettes
+   en mode paysage (≥ 1024px), où le contenu rentre déjà.
+   ============================================================ */
+@media (max-width: 1023.98px) {
+  /* --- Fix 5b : page headers (titre + actions) --------------
+     Toutes les pages dashboard (admin/teacher/student/parent)
+     utilisent le pattern `flex items-center justify-between`
+     ou `flex items-center gap-4` pour le header (titre à
+     gauche, boutons d'action à droite). Aucun breakpoint n'est
+     défini → sur mobile portrait ET paysage, le titre se
+     compresse verticalement entre les boutons (ex: "Gestion /
+     des / Notes" sur 3 lignes) et les actions débordent à
+     droite (scroll horizontal forcé pour voir "Importer" /
+     "Ajouter une Note").
+
+     On autorise simplement le wrap naturel des éléments.
+     `flex-wrap: wrap` est INVISIBLE tant que le contenu rentre
+     dans une seule ligne — donc aucun effet de bord sur les
+     viewports plus larges où ça passe déjà. Le sélecteur
+     `:has(h1)` cible uniquement les vrais headers de page
+     (h1 = titre principal) et n'affecte pas les `flex
+     justify-between` internes des cards (qui utilisent <p>
+     ou <div>) ni les modals (qui utilisent <h2>/<h3>). */
+  .section-content .flex.items-center.justify-between:has(h1),
+  .section-content .flex.items-center.gap-4:has(h1) {
+    flex-wrap: wrap;
+  }
+
+  /* Les groupes internes de boutons (Exporter / Importer /
+     Ajouter une Note, ou recherche + filtres) doivent aussi
+     pouvoir wrapper individuellement quand la rangée d'actions
+     dépasse à elle seule la largeur disponible. */
+  .section-content .flex.items-center.justify-between:has(h1) > .flex,
+  .section-content .flex.items-center.gap-4:has(h1) > .flex {
+    flex-wrap: wrap;
+  }
+}

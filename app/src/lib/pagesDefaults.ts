@@ -197,7 +197,7 @@ export const DEFAULT_PROGRAMS: ProgramsContent = {
     primaryButtonText: "Explorer les programmes",
     primaryButtonLink: "#filters",
     secondaryButtonText: "Nous contacter",
-    secondaryButtonLink: "/admissions#contact",
+    secondaryButtonLink: "https://wa.me/221775368254",
     videoSrc: "/excz.mp4",
     posterSrc: "/programs-hero.jpg",
     trustItems: [
@@ -483,7 +483,7 @@ export const DEFAULT_ADMISSIONS: AdmissionsContent = {
     primaryButtonText: "Commencer l'inscription",
     primaryButtonLink: "#process",
     secondaryButtonText: "Nous contacter",
-    secondaryButtonLink: "#contact",
+    secondaryButtonLink: "https://wa.me/221775368254",
     videoSrc: "/excz.mp4",
     posterSrc: "/admissions-hero.jpg",
     trustItems: [

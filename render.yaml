@@ -1,16 +1,19 @@
-databases:
-  - name: forum-excellence-db
-    databaseName: forum_excellence
-    user: forum_user
+# Render Blueprint — 100% free tier setup.
+#
+# Postgres lives on Neon (free, serverless, 0.5 GB) and Redis lives on
+# Upstash (free, 256 MB, 10K commands/day). Render only hosts the Node
+# backend and the static frontend, both on the free plan. You wire the
+# external service URLs in via env vars in the Render dashboard.
+#
+# When you click "New > Blueprint" on Render and point it at this repo,
+# Render will create the two services below and prompt you for every
+# `sync: false` value. Fill them in and the apps boot.
 
 services:
-  - type: redis
-    name: forum-excellence-redis
-    ipAllowList: []
-
   - type: web
     name: forum-excellence-api
     env: node
+    plan: free
     rootDir: backend
     buildCommand: npm ci && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && npm run start
@@ -18,19 +21,25 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # External Postgres (Neon). Paste the pooled connection string from
+      # the Neon dashboard, e.g.
+      #   postgresql://user:pwd@ep-xyz-pooler.region.aws.neon.tech/dbname?sslmode=require
       - key: DATABASE_URL
-        fromDatabase:
-          name: forum-excellence-db
-          property: connectionString
+        sync: false
+      # External Redis (Upstash). Paste the rediss:// URL from the
+      # Upstash console, e.g.
+      #   rediss://default:<token>@<host>.upstash.io:6379
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: forum-excellence-redis
-          property: connectionString
+        sync: false
+      # Public URL of the frontend service (filled in after first deploy,
+      # used for CORS allow-list). Looks like https://forum-excellence-frontend.onrender.com
       - key: FRONTEND_URL
         sync: false
+      # Public URL of THIS api service (used by the backend to build
+      # absolute links in emails / uploads). Same shape, ending in .onrender.com
       - key: BACKEND_PUBLIC_URL
         sync: false
+      # Generate two strong random secrets (see DEPLOY_GUIDE step 4).
       - key: JWT_SECRET
         sync: false
       - key: JWT_REFRESH_SECRET
@@ -60,5 +69,8 @@ services:
         source: /*
         destination: /index.html
     envVars:
+      # Public URL of the api service above. Set to the same value you
+      # use for BACKEND_PUBLIC_URL on the api service — the frontend
+      # bakes this into the bundle at build time.
       - key: VITE_API_BASE_URL
         sync: false

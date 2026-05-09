@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   Clock,
   MoreHorizontal,
+  FileText,
 } from 'lucide-react';
 
 type ScheduleItem = {
@@ -195,6 +196,7 @@ const TeacherDashboard: React.FC = () => {
     { name: 'Mes Classes', href: '/teacher/classes', icon: BookOpen },
     { name: 'Mes Élèves', href: '/teacher/students', icon: Users },
     { name: 'Gestion des Notes', href: '/teacher/grades', icon: ClipboardList },
+    { name: 'Édition Bulletins', href: '/teacher/report-cards', icon: FileText },
     { name: 'Mon Emploi du Temps', href: '/teacher/schedule', icon: Calendar },
   ];
 

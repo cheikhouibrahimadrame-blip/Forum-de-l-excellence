@@ -398,8 +398,8 @@ const AdminMainPage: React.FC = () => {
         </div>
 
         {/* Sticky publish bar */}
-        <div className="sticky top-0 z-30 -mx-4 md:mx-0 mb-6">
-          <div className="mx-4 md:mx-0 rounded-xl border border-[var(--color-border)] bg-white/95 backdrop-blur-sm shadow-sm px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="sticky top-0 z-30 mb-6">
+          <div className="rounded-xl border border-[var(--color-border)] bg-white/95 backdrop-blur-sm shadow-sm px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3 text-sm">
               {dirty ? (
                 <span className="inline-flex items-center gap-2 text-amber-600 font-medium">

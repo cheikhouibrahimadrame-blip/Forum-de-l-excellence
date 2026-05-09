@@ -63,6 +63,7 @@ model Student {
   parentStudents      ParentStudent[]
   pickupLogs          PickupLog[]          @relation("StudentPickupLog")
   reportCards         ReportCard[]
+  reportCardDrafts    ReportCardDraft[]
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([studentId])
@@ -617,6 +618,7 @@ model AcademicYear {
   endDate   DateTime   @db.Date
   isActive  Boolean    @default(false)
   trimesters Trimester[]
+  reportCardDrafts ReportCardDraft[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -655,6 +657,57 @@ model Class {
   updatedAt      DateTime @updatedAt
 
   @@index([academicYearId])
+}
+
+// ============================================================
+// ReportCardDraft
+// ------------------------------------------------------------
+// Persisted bulletin payload edited by admins (and partially by
+// teachers). One row per (student, academicYear, trimester).
+//
+// The actual notes computed from `Grade` rows remain the source
+// of truth for the "raw" grades; this table layers on top:
+//   - per-subject overrides (final grade, max scale, coefficient,
+//     teacher appreciation) — `entries` JSON.
+//   - bulletin-wide fields owned by admin: `compositions`,
+//     `decision`, `councilObservation`, `attendance`,
+//     `generalAppreciation`, `gradeScale`.
+//
+// Role-based write access is enforced in the controller:
+//   - ADMIN  : can edit every field below.
+//   - TEACHER: can only edit `entries[].appreciation` (others
+//              are merge-preserved when the teacher saves).
+// Read access:
+//   - STUDENT (self), PARENT (their child), TEACHER, ADMIN.
+// ============================================================
+model ReportCardDraft {
+  id                  String       @id @default(uuid()) @db.Uuid
+  studentId           String       @db.Uuid
+  academicYearId      String       @db.Uuid
+  /// Trimester index 1, 2 or 3 (3 = bulletin annuel).
+  trimester           Int
+  /// Final-mean scale: 10 (primaire) or 20 (collège/lycée).
+  gradeScale          Int          @default(20)
+  /// JSON array of `{ subject, teacher?, grade?, maxGrade?, coefficient, appreciation? }`.
+  entries             Json?
+  generalAppreciation String?
+  /// `{ first?, second?, third?, annual? }` — annual bulletin only.
+  compositions        Json?
+  /// 'promoted' | 'redoubling' | 'excluded' — annual bulletin only.
+  decision            String?      @db.VarChar(20)
+  /// 'congrats' | 'encouragement' | 'honor' | 'warning' | 'blame'.
+  councilObservation  String?      @db.VarChar(20)
+  /// `{ present?, absent?, late? }`.
+  attendance          Json?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  updatedById         String?      @db.Uuid
+  student             Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear        AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, academicYearId, trimester])
+  @@index([academicYearId, trimester])
+  @@index([studentId])
 }
 enum Role {
   STUDENT

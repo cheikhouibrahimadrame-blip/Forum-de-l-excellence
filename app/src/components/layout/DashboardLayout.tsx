@@ -227,6 +227,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           { name: 'Santé', href: '/parent/health', icon: Heart },
           { name: 'Personnes Autorisées', href: '/parent/pickup', icon: ShieldCheck },
           { name: 'Notes', href: '/parent/grades', icon: Award },
+          { name: 'Bulletins', href: '/parent/report-cards', icon: FileText },
           { name: 'Emplois du Temps', href: '/parent/schedule', icon: Calendar },
           { name: 'Rendez-vous', href: '/parent/appointments', icon: MessageSquare },
         ];
@@ -240,6 +241,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           { name: 'Messages', href: '/teacher/messages', icon: Mail },
           { name: 'Comportement', href: '/teacher/behavior', icon: TrendingUp },
           { name: 'Gestion Notes', href: '/teacher/grades', icon: Award },
+          { name: 'Bulletins', href: '/teacher/report-cards', icon: FileText },
           { name: 'Emploi du Temps', href: '/teacher/schedule', icon: Calendar },
         ];
       case 'ADMIN':
@@ -254,7 +256,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           { name: 'Parents & Élèves', href: '/admin/parents-students', icon: Users },
           { name: 'Rendez-vous', href: '/admin/appointments', icon: MessageSquare },
           { name: 'Présence', href: '/admin/attendance', icon: ClipboardCheck },
-          { name: 'Bulletins Semestriels', href: '/admin/bulletins', icon: FileText },
+          { name: 'Bulletins Trimestriels', href: '/admin/bulletins', icon: FileText },
           { name: 'Santé', href: '/admin/health', icon: Heart },
           { name: 'Ramassage', href: '/admin/pickup', icon: ShieldCheck },
           { name: 'Page Accueil', href: '/admin/mainpage', icon: Home },

@@ -364,7 +364,7 @@ export const CtaEditor: React.FC<{
       <TextField label="Bouton principal — texte" value={cta.primaryButtonText} onChange={(v) => onChange({ ...cta, primaryButtonText: v })} />
       <TextField label="Bouton principal — lien" value={cta.primaryButtonLink} onChange={(v) => onChange({ ...cta, primaryButtonLink: v })} placeholder="/admissions" />
       <TextField label="Bouton secondaire — texte" value={cta.secondaryButtonText} onChange={(v) => onChange({ ...cta, secondaryButtonText: v })} />
-      <TextField label="Bouton secondaire — lien" value={cta.secondaryButtonLink} onChange={(v) => onChange({ ...cta, secondaryButtonLink: v })} placeholder="tel:+221775368254 ou /programs" />
+      <TextField label="Bouton secondaire — lien" value={cta.secondaryButtonLink} onChange={(v) => onChange({ ...cta, secondaryButtonLink: v })} placeholder="https://wa.me/221775368254 · tel:+221775368254 · /programs" />
     </div>
     <div>
       <label className={labelCls}>Badges de réassurance (en bas)</label>
@@ -395,8 +395,8 @@ export const PublishBar: React.FC<{
   onPublish: () => void;
 }> = ({ dirty, saving, message, onPublish }) => {
   return (
-    <div className="sticky top-0 z-30 -mx-4 md:mx-0 mb-6">
-      <div className="mx-4 md:mx-0 rounded-xl border border-[var(--color-border)] bg-white/95 backdrop-blur-sm shadow-sm px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+    <div className="sticky top-0 z-30 mb-6">
+      <div className="rounded-xl border border-[var(--color-border)] bg-white/95 backdrop-blur-sm shadow-sm px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 text-sm">
           {dirty ? (
             <span className="inline-flex items-center gap-2 text-amber-600 font-medium">

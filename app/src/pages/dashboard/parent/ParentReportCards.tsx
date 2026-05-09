@@ -1,9 +1,17 @@
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { FileText, Download, Printer, Calendar, Award, TrendingUp, Eye, ArrowLeft } from 'lucide-react';
+import {
+  FileText,
+  Printer,
+  Calendar,
+  Award,
+  TrendingUp,
+  Eye,
+  ArrowLeft,
+  Users,
+  AlertCircle,
+} from 'lucide-react';
 import { useScrollReveal } from '../../../hooks/useScrollReveal';
-import { downloadPDF } from '../../../utils/pdfGenerator';
-import { useAuth } from '../../../contexts/AuthContext';
 import { useBranding } from '../../../contexts/BrandingContext';
 import { api } from '../../../lib/api';
 import { API } from '../../../lib/apiRoutes';
@@ -20,19 +28,23 @@ import {
 } from '../../../lib/reportCardClient';
 
 // ============================================================
-// StudentReportCards
+// ParentReportCards
 // ------------------------------------------------------------
-// Vue READ-ONLY du bulletin. Toujours synchronisée :
-//   - notes brutes : /api/grades/student/:id
-//   - overlay      : /api/report-cards (rempli par admin / prof)
-// L'élève ne peut RIEN éditer ; le composant ReportCardA4 est
-// monté avec `editable={false}` (valeur par défaut).
-//
-// Le sélecteur de trimestre liste TOUS les trimestres définis
-// dans l'année active (cf. /admin/years), donc l'élève peut
-// consulter T1 / T2 / T3 — annuel — au fil de l'année dès que
-// l'admin commence à les remplir.
+// Vue READ-ONLY du bulletin pour les parents. Le parent choisit
+// l'enfant + le trimestre, et voit exactement ce que l'admin
+// (et le prof pour les appréciations) ont rempli — temps réel
+// via /api/report-cards.
 // ============================================================
+
+type Child = {
+  /** Student profile id (utilisé pour `/api/report-cards`). */
+  studentId: string;
+  /** Matricule scolaire (affichage uniquement). */
+  studentMatricule?: string;
+  firstName: string;
+  lastName: string;
+  className?: string;
+};
 
 type Trimester = {
   id: string;
@@ -63,24 +75,70 @@ const trimesterLabel = (n: 1 | 2 | 3) =>
       ? '2ème Trimestre'
       : '3ème Trimestre — Bilan Annuel';
 
-const StudentReportCards: React.FC = () => {
-  const { user } = useAuth();
+const fullName = (c: Child) => `${c.firstName} ${c.lastName}`.trim();
+
+const ParentReportCards: React.FC = () => {
   const { branding } = useBranding();
   const refreshTick = useLiveRefresh(30000);
   const { ref: headerRef, isVisible: headerVisible } = useScrollReveal();
   const { ref: cardHeaderRef, isVisible: cardHeaderVisible } = useScrollReveal();
   const { ref: tableRef, isVisible: tableVisible } = useScrollReveal();
   const { ref: commentsRef, isVisible: commentsVisible } = useScrollReveal();
-  const { ref: historyRef, isVisible: historyVisible } = useScrollReveal();
+
+  const [children, setChildren] = useState<Child[]>([]);
+  const [loadingChildren, setLoadingChildren] = useState(true);
+  const [childrenError, setChildrenError] = useState('');
+  const [selectedChildId, setSelectedChildId] = useState('');
 
   const [activeYear, setActiveYear] = useState<AcademicYear | null>(null);
   const [selectedTrimester, setSelectedTrimester] = useState<1 | 2 | 3>(1);
   const [bulletin, setBulletin] = useState<Bulletin | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showA4Preview, setShowA4Preview] = useState(false);
 
-  // Charge l'année active + auto-sélectionne le trimestre actif.
+  // Charge les enfants liés au parent connecté.
+  useEffect(() => {
+    const run = async () => {
+      try {
+        setLoadingChildren(true);
+        setChildrenError('');
+        const res = await api.get(API.PARENT_STUDENTS_MY);
+        const data = res.data;
+        const payload = data?.data?.students || data?.data || [];
+        const normalized: Child[] = (Array.isArray(payload) ? payload : []).map(
+          (item: any) => {
+            const student = item.student || item;
+            const user = student.user || item.user || {};
+            const classInfo = student.class || {};
+            return {
+              studentId: String(student.id || item.id || ''),
+              studentMatricule: student.studentId,
+              firstName: user.firstName || '',
+              lastName: user.lastName || '',
+              className: classInfo.name || student.major,
+            };
+          },
+        );
+        setChildren(normalized);
+        if (normalized.length > 0 && !selectedChildId) {
+          setSelectedChildId(normalized[0].studentId);
+        }
+      } catch (err: any) {
+        setChildrenError(
+          err?.response?.data?.error ||
+            err?.message ||
+            'Impossible de charger la liste de vos enfants.',
+        );
+      } finally {
+        setLoadingChildren(false);
+      }
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Charge l'année active.
   useEffect(() => {
     const run = async () => {
       try {
@@ -94,7 +152,6 @@ const StudentReportCards: React.FC = () => {
         const active = years.find((y) => y.isActive) || years[0] || null;
         if (!active) return;
         setActiveYear(active);
-
         const sorted = [...active.trimesters].sort((a, b) => {
           const ai = parseInt(a.name.replace(/\D/g, ''), 10) || 0;
           const bi = parseInt(b.name.replace(/\D/g, ''), 10) || 0;
@@ -105,18 +162,14 @@ const StudentReportCards: React.FC = () => {
           setSelectedTrimester(((activeIndex + 1) as 1 | 2 | 3));
         }
       } catch {
-        // silent — fallback "Trimestre en cours"
+        // optionnel
       }
     };
     run();
   }, []);
 
-  // Trimestres effectivement disponibles pour le sélecteur
-  // (basés sur les Trimester rows définis dans /admin/years).
   const availableTrimesters = useMemo<(1 | 2 | 3)[]>(() => {
     if (!activeYear?.trimesters || activeYear.trimesters.length === 0) {
-      // Fallback : afficher les 3 trimestres standards si l'API
-      // n'a rien renvoyé. Évite un sélecteur vide.
       return [1, 2, 3];
     }
     const sorted = [...activeYear.trimesters].sort((a, b) => {
@@ -127,11 +180,15 @@ const StudentReportCards: React.FC = () => {
     return sorted.slice(0, 3).map((_, i) => (i + 1) as 1 | 2 | 3);
   }, [activeYear]);
 
-  // Charge le bulletin merged pour (élève courant, année, trimestre).
+  const selectedChild = useMemo(
+    () => children.find((c) => c.studentId === selectedChildId) || null,
+    [children, selectedChildId],
+  );
+
+  // Charge le bulletin merged dès qu'on a (enfant, année, trimestre).
   useEffect(() => {
-    const studentProfileId = user?.student?.id;
-    if (!studentProfileId || !activeYear?.id) {
-      setLoading(false);
+    if (!selectedChildId || !activeYear?.id) {
+      setBulletin(null);
       return;
     }
     let cancelled = false;
@@ -140,17 +197,16 @@ const StudentReportCards: React.FC = () => {
         setLoading(true);
         setError('');
         const merged = await loadStudentBulletin({
-          studentId: studentProfileId,
+          studentId: selectedChildId,
           yearId: activeYear.id,
           trimester: selectedTrimester,
         });
         if (cancelled) return;
-
         setBulletin({
           trimesterIndex: selectedTrimester,
           trimesterLabel: trimesterLabel(selectedTrimester),
           academicYear: activeYear.year,
-          className: merged.className || user?.student?.major || '',
+          className: merged.className || selectedChild?.className || '',
           entries: merged.entries,
           gradeScale: merged.saved?.gradeScale ?? 20,
           saved: merged.saved,
@@ -172,23 +228,18 @@ const StudentReportCards: React.FC = () => {
       cancelled = true;
     };
   }, [
-    user?.student?.id,
-    user?.student?.major,
+    selectedChildId,
     activeYear?.id,
     activeYear?.year,
     selectedTrimester,
+    selectedChild?.className,
     refreshTick,
   ]);
 
-  // ----------------------------------------------------------------
-  // Calculs dérivés à partir des entries (sync avec ce que l'admin
-  // a sauvegardé). Tout est recalculé live à chaque render.
-  // ----------------------------------------------------------------
   const liveSummary = useMemo(() => {
     if (!bulletin) {
       return {
         gpaScaled: 0,
-        gpaOn20: 0,
         mention: 'Insuffisant',
         matieres: 0,
       };
@@ -197,7 +248,6 @@ const StudentReportCards: React.FC = () => {
     const on20 = computeAverage(bulletin.entries, 20);
     return {
       gpaScaled: onScale === null ? 0 : Number(onScale.toFixed(2)),
-      gpaOn20: on20 === null ? 0 : Number(on20.toFixed(2)),
       mention: getMention(on20 ?? 0, 20),
       matieres: bulletin.entries.length,
     };
@@ -205,73 +255,16 @@ const StudentReportCards: React.FC = () => {
 
   const isAnnual = bulletin?.trimesterIndex === 3;
 
-  // ----------------------------------------------------------------
-  // Téléchargement PDF (texte simple — pour un PDF stylé, l'élève
-  // peut utiliser "Imprimer → Enregistrer en PDF" depuis l'aperçu).
-  // ----------------------------------------------------------------
-  const handleDownload = () => {
-    if (!bulletin) return;
-    const rows = bulletin.entries
-      .map(
-        (e) => `
-          <tr>
-            <td>${e.subject}</td>
-            <td>${e.teacher || '-'}</td>
-            <td><strong>${e.grade ?? '—'}/${e.maxGrade ?? 20}</strong></td>
-            <td>${e.coefficient}</td>
-          </tr>`,
-      )
-      .join('');
-    const content = `
-      <div class="header">
-        <div class="header-title">${bulletin.trimesterLabel}</div>
-        <div class="header-subtitle">Année ${bulletin.academicYear}</div>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-box"><div class="stat-value">${liveSummary.gpaScaled.toFixed(2)}/${bulletin.gradeScale}</div><div class="stat-label">Moyenne</div></div>
-        <div class="stat-box"><div class="stat-value">${liveSummary.mention}</div><div class="stat-label">Mention</div></div>
-        <div class="stat-box"><div class="stat-value">${liveSummary.matieres}</div><div class="stat-label">Matières</div></div>
-      </div>
-      <div class="section">
-        <div class="section-title">Détails des matières</div>
-        <table>
-          <thead><tr><th>Matière</th><th>Enseignant</th><th>Note</th><th>Coef.</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-      <div class="footer"><p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p><p>${branding.brand.pdfFooterText}</p></div>
-    `;
-    downloadPDF(content, `Bulletin_T${bulletin.trimesterIndex}`);
-  };
-
   const handlePrint = () => {
     if (!bulletin) return;
     window.print();
   };
 
-  const studentFullName = useMemo(() => {
-    const first = user?.firstName || '';
-    const last = user?.lastName || '';
-    return `${first} ${last}`.trim() || 'Élève';
-  }, [user?.firstName, user?.lastName]);
-
-  // Filtre des entries valides (avec note) pour l'affichage du
-  // tableau en mode dashboard. Le composant A4 gère lui-même les
-  // entries sans note via `formatGrade`.
-  const validEntries = useMemo(
-    () =>
-      bulletin
-        ? bulletin.entries.filter(
-            (e) => e.grade !== null && !Number.isNaN(e.grade as number),
-          )
-        : [],
-    [bulletin],
-  );
+  const studentFullName = selectedChild ? fullName(selectedChild) : 'Élève';
 
   return (
     <>
-      {/* Host A4 toujours monté pour print rapide. */}
-      {bulletin && (
+      {bulletin && selectedChild && (
         <div className="rc-print-host" data-screen-hidden={!showA4Preview}>
           <ReportCardA4
             school={{
@@ -285,7 +278,7 @@ const StudentReportCards: React.FC = () => {
             }}
             student={{
               fullName: studentFullName,
-              studentId: user?.student?.studentId,
+              studentId: selectedChild.studentMatricule,
               className: bulletin.className,
             }}
             period={{
@@ -300,7 +293,7 @@ const StudentReportCards: React.FC = () => {
             decision={bulletin.saved?.decision || undefined}
             councilObservation={bulletin.saved?.councilObservation || undefined}
             attendance={bulletin.saved?.attendance || undefined}
-            // editable defaults to false → strict read-only.
+            // editable = false par défaut → strictement lecture seule
           />
         </div>
       )}
@@ -333,36 +326,74 @@ const StudentReportCards: React.FC = () => {
                 className={`flex items-center justify-between gap-4 flex-wrap ${headerVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
               >
                 <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">
-                  Mes Bulletins
+                  Bulletins de mes enfants
                 </h1>
-                <select
-                  value={selectedTrimester}
-                  onChange={(e) =>
-                    setSelectedTrimester(Number(e.target.value) as 1 | 2 | 3)
-                  }
-                  className="input-field appearance-none bg-no-repeat bg-right pr-10"
-                >
-                  {availableTrimesters.map((n) => (
-                    <option key={n} value={n}>
-                      {trimesterLabel(n)}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {children.length > 0 && (
+                    <select
+                      value={selectedChildId}
+                      onChange={(e) => setSelectedChildId(e.target.value)}
+                      className="input-field appearance-none bg-no-repeat bg-right pr-10"
+                    >
+                      {children.map((c) => (
+                        <option key={c.studentId} value={c.studentId}>
+                          {fullName(c)}
+                          {c.className ? ` — ${c.className}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <select
+                    value={selectedTrimester}
+                    onChange={(e) =>
+                      setSelectedTrimester(Number(e.target.value) as 1 | 2 | 3)
+                    }
+                    className="input-field appearance-none bg-no-repeat bg-right pr-10"
+                  >
+                    {availableTrimesters.map((n) => (
+                      <option key={n} value={n}>
+                        {trimesterLabel(n)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
+              {childrenError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  {childrenError}
+                </div>
+              )}
               {error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {error}
                 </div>
               )}
 
-              {loading && (
+              {loadingChildren && (
+                <div className="card p-6 text-center text-[var(--color-text-secondary)]">
+                  Chargement de vos enfants...
+                </div>
+              )}
+
+              {!loadingChildren && children.length === 0 && (
+                <div className="card p-8 text-center">
+                  <Users className="w-10 h-10 text-[var(--color-text-muted)] mx-auto mb-3" />
+                  <p className="text-[var(--color-text-secondary)]">
+                    Aucun enfant n'est actuellement rattaché à votre compte.
+                    Contactez l'administration pour configurer le lien.
+                  </p>
+                </div>
+              )}
+
+              {loading && children.length > 0 && (
                 <div className="card p-6 text-center text-[var(--color-text-secondary)]">
                   Chargement du bulletin...
                 </div>
               )}
 
-              {bulletin && !loading && (
+              {bulletin && !loading && selectedChild && (
                 <>
                   <div
                     ref={cardHeaderRef}
@@ -371,10 +402,11 @@ const StudentReportCards: React.FC = () => {
                     <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                       <div>
                         <h2 className="text-2xl font-bold mb-2">
-                          {bulletin.trimesterLabel}
+                          {studentFullName}
                         </h2>
                         <p className="text-white/80">
-                          Année {bulletin.academicYear}
+                          {bulletin.trimesterLabel} — Année{' '}
+                          {bulletin.academicYear}
                           {bulletin.className ? ` — ${bulletin.className}` : ''}
                         </p>
                       </div>
@@ -385,13 +417,6 @@ const StudentReportCards: React.FC = () => {
                         >
                           <Eye className="w-4 h-4" />
                           Aperçu A4
-                        </button>
-                        <button
-                          onClick={handleDownload}
-                          className="flex items-center gap-2 px-4 py-2 bg-white text-[var(--color-primary-navy)] font-semibold rounded-lg hover:bg-white/90 transition-colors shadow-sm"
-                        >
-                          <Download className="w-4 h-4" />
-                          Télécharger
                         </button>
                         <button
                           onClick={handlePrint}
@@ -443,7 +468,8 @@ const StudentReportCards: React.FC = () => {
                       </h3>
                       <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
                         <TrendingUp className="w-4 h-4" />
-                        Moyenne : {liveSummary.gpaScaled.toFixed(2)}/{bulletin.gradeScale}
+                        Moyenne : {liveSummary.gpaScaled.toFixed(2)}/
+                        {bulletin.gradeScale}
                       </div>
                     </div>
                     <div className="overflow-x-auto">
@@ -468,6 +494,16 @@ const StudentReportCards: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--color-border)]">
+                          {bulletin.entries.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={5}
+                                className="px-6 py-8 text-center text-[var(--color-text-muted)]"
+                              >
+                                Aucune note enregistrée pour ce trimestre.
+                              </td>
+                            </tr>
+                          )}
                           {bulletin.entries.map((entry, index) => {
                             const max = entry.maxGrade ?? 20;
                             const display =
@@ -506,109 +542,96 @@ const StudentReportCards: React.FC = () => {
                               </tr>
                             );
                           })}
-                          {validEntries.length === 0 && (
-                            <tr>
-                              <td
-                                colSpan={5}
-                                className="px-6 py-8 text-center text-[var(--color-text-muted)]"
-                              >
-                                Aucune note enregistrée pour ce trimestre.
-                              </td>
-                            </tr>
-                          )}
                         </tbody>
                       </table>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div
-                      ref={commentsRef}
-                      className={`card p-6 ${commentsVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
-                    >
-                      <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-[var(--color-primary-navy)]" />
-                        Appréciation générale
-                      </h3>
-                      <div className="space-y-4 text-[var(--color-text-secondary)]">
-                        {bulletin.saved?.generalAppreciation ? (
-                          <p className="whitespace-pre-line">
-                            {bulletin.saved.generalAppreciation}
-                          </p>
-                        ) : (
-                          <p className="italic text-[var(--color-text-muted)]">
-                            Aucune appréciation générale n'a encore été
-                            enregistrée par l'administration pour ce trimestre.
-                          </p>
-                        )}
-                        {bulletin.saved?.councilObservation && (
-                          <p>
-                            <strong className="text-[var(--color-text-primary)]">
-                              Observation du conseil :
-                            </strong>{' '}
-                            {bulletin.saved.councilObservation === 'congrats'
-                              ? 'Félicitations'
-                              : bulletin.saved.councilObservation ===
-                                  'encouragement'
-                                ? 'Encouragement'
-                                : bulletin.saved.councilObservation === 'honor'
-                                  ? "Tableau d'honneur"
-                                  : bulletin.saved.councilObservation ===
-                                      'warning'
-                                    ? 'Avertissement'
-                                    : 'Blâme'}
-                          </p>
-                        )}
-                        {isAnnual && bulletin.saved?.decision && (
-                          <p>
-                            <strong className="text-[var(--color-text-primary)]">
-                              Décision du conseil :
-                            </strong>{' '}
-                            {bulletin.saved.decision === 'promoted'
-                              ? 'Admis(e) en classe supérieure'
-                              : bulletin.saved.decision === 'redoubling'
-                                ? 'Autorisé(e) à redoubler'
-                                : 'Exclusion'}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div
-                      ref={historyRef}
-                      className={`card p-6 ${historyVisible ? 'animate-slide-in-right' : 'opacity-0'}`}
-                    >
-                      <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-[var(--color-primary-navy)]" />
-                        Assiduité
-                      </h3>
-                      <div className="space-y-3 text-[var(--color-text-secondary)]">
+                  <div
+                    ref={commentsRef}
+                    className={`card p-6 ${commentsVisible ? 'animate-slide-in-left' : 'opacity-0'}`}
+                  >
+                    <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-[var(--color-primary-navy)]" />
+                      Appréciation générale & conseil
+                    </h3>
+                    <div className="space-y-4 text-[var(--color-text-secondary)]">
+                      {bulletin.saved?.generalAppreciation ? (
+                        <p className="whitespace-pre-line">
+                          {bulletin.saved.generalAppreciation}
+                        </p>
+                      ) : (
+                        <p className="italic text-[var(--color-text-muted)]">
+                          Aucune appréciation générale enregistrée.
+                        </p>
+                      )}
+                      {bulletin.saved?.councilObservation && (
                         <p>
                           <strong className="text-[var(--color-text-primary)]">
-                            Présent :
+                            Observation du conseil :
                           </strong>{' '}
-                          {bulletin.saved?.attendance?.present ?? '-'}
+                          {bulletin.saved.councilObservation === 'congrats'
+                            ? 'Félicitations'
+                            : bulletin.saved.councilObservation ===
+                                'encouragement'
+                              ? 'Encouragement'
+                              : bulletin.saved.councilObservation === 'honor'
+                                ? "Tableau d'honneur"
+                                : bulletin.saved.councilObservation ===
+                                    'warning'
+                                  ? 'Avertissement'
+                                  : 'Blâme'}
                         </p>
+                      )}
+                      {isAnnual && bulletin.saved?.decision && (
                         <p>
                           <strong className="text-[var(--color-text-primary)]">
-                            Absences :
+                            Décision du conseil :
                           </strong>{' '}
-                          {bulletin.saved?.attendance?.absent ?? '-'}
+                          {bulletin.saved.decision === 'promoted'
+                            ? 'Admis(e) en classe supérieure'
+                            : bulletin.saved.decision === 'redoubling'
+                              ? 'Autorisé(e) à redoubler'
+                              : 'Exclusion'}
                         </p>
-                        <p>
-                          <strong className="text-[var(--color-text-primary)]">
-                            Retards :
-                          </strong>{' '}
-                          {bulletin.saved?.attendance?.late ?? '-'}
+                      )}
+                      {bulletin.saved?.attendance && (
+                        <div className="grid grid-cols-3 gap-3 pt-2">
+                          <div className="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-center">
+                            <div className="text-xl font-bold text-[var(--color-primary-navy)]">
+                              {bulletin.saved.attendance.present ?? '-'}
+                            </div>
+                            <div className="text-xs text-[var(--color-text-muted)]">
+                              Présences
+                            </div>
+                          </div>
+                          <div className="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-center">
+                            <div className="text-xl font-bold text-amber-600">
+                              {bulletin.saved.attendance.absent ?? '-'}
+                            </div>
+                            <div className="text-xs text-[var(--color-text-muted)]">
+                              Absences
+                            </div>
+                          </div>
+                          <div className="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-center">
+                            <div className="text-xl font-bold text-orange-600">
+                              {bulletin.saved.attendance.late ?? '-'}
+                            </div>
+                            <div className="text-xs text-[var(--color-text-muted)]">
+                              Retards
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {bulletin.saved?.updatedAt && (
+                        <p className="text-xs text-[var(--color-text-muted)] mt-3 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          Bulletin mis à jour le{' '}
+                          {new Date(bulletin.saved.updatedAt).toLocaleString(
+                            'fr-FR',
+                          )}
                         </p>
-                        {bulletin.saved?.updatedAt && (
-                          <p className="text-xs text-[var(--color-text-muted)] mt-4">
-                            Bulletin mis à jour le{' '}
-                            {new Date(
-                              bulletin.saved.updatedAt,
-                            ).toLocaleString('fr-FR')}
-                          </p>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
                 </>
@@ -621,4 +644,4 @@ const StudentReportCards: React.FC = () => {
   );
 };
 
-export default StudentReportCards;
+export default ParentReportCards;

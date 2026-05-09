@@ -84,17 +84,17 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
       <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-bg-card)] shadow-sm dark:border-[#283244] dark:bg-[linear-gradient(180deg,var(--color-bg-card)_0%,var(--color-bg-secondary)_100%)]">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/" className="flex min-w-0 flex-1 items-center gap-2 md:flex-initial">
               <img
                 src={brand.logoUrl}
                 alt={brand.name}
-                className="h-10 w-10 rounded-lg object-cover"
+                className="h-10 w-10 shrink-0 rounded-lg object-cover"
               />
-              <div className="flex flex-col">
-                <span className="text-lg font-bold text-[var(--color-text-primary)] dark:text-[var(--color-text-primary)]">
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-base font-bold text-[var(--color-text-primary)] dark:text-[var(--color-text-primary)] sm:text-lg">
                   {brand.name}
                 </span>
-                <span className="text-xs text-[var(--color-text-secondary)] dark:text-[var(--color-text-secondary)]">
+                <span className="hidden truncate text-xs text-[var(--color-text-secondary)] dark:text-[var(--color-text-secondary)] sm:block">
                   {brand.shortName}
                 </span>
               </div>
@@ -112,7 +112,7 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               ))}
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <button
                 onClick={toggleTheme}
                 className="rounded-lg p-2 transition-colors hover:bg-[var(--color-bg-secondary)] dark:hover:bg-white/8"

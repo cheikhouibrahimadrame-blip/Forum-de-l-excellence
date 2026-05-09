@@ -1,0 +1,1217 @@
+/* ============================================================
+   REPORT CARD A4 — print-perfect "document officiel"
+   ------------------------------------------------------------
+   Format strict : 210 × 297 mm. La page entière respecte le
+   gabarit A4. À l'impression (CTRL+P), seul le bulletin est
+   visible : la nav, la sidebar, la topbar de l'app sont
+   masquées via `visibility: hidden` sauf pour `.rc-print-host`.
+   ============================================================ */
+
+/* ---------- 1. Page A4 stricte ---------- */
+.rc-a4 {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 14mm 16mm 18mm;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Inter, sans-serif;
+  font-size: 9.5pt;
+  line-height: 1.45;
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  /* Force colour fidelity à l'impression — sans ça, Chrome/Safari
+     virent les fonds et gradients pour "économiser de l'encre". */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* On entoure d'un host à l'écran pour donner le look "papier" */
+.rc-print-host {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8mm;
+  padding: 6mm 0;
+  background: linear-gradient(180deg, #f4f1eb 0%, #ece6da 100%);
+  min-height: 100vh;
+}
+
+.rc-print-host .rc-a4 {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 12px 32px rgba(0, 0, 0, 0.12),
+    0 24px 60px rgba(0, 51, 102, 0.08);
+  border-radius: 0.5mm;
+}
+
+/* Le host peut être rendu en permanence dans le DOM mais
+   masqué visuellement, pour rester imprimable sans flasher
+   l'écran. On le décale hors-viewport plutôt qu'avec
+   `display: none` (qui empêcherait l'impression). */
+.rc-print-host[data-screen-hidden='true'] {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 210mm;
+  margin: 0;
+  padding: 0;
+  background: white;
+  pointer-events: none;
+  z-index: -1;
+  min-height: auto;
+  gap: 0;
+}
+
+/* ---------- 2. Liseré or + bandeau marine ---------- */
+.rc-top-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 7mm;
+  background: linear-gradient(135deg, #003366 0%, #1e4980 100%);
+}
+.rc-top-band::after {
+  content: '';
+  position: absolute;
+  bottom: -1.4mm;
+  left: 0;
+  right: 0;
+  height: 1.4mm;
+  background: linear-gradient(
+    90deg,
+    #c39d5b 0%,
+    #e5c88a 25%,
+    #c39d5b 50%,
+    #e5c88a 75%,
+    #c39d5b 100%
+  );
+}
+
+.rc-bottom-band {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4mm;
+  background:
+    linear-gradient(90deg, #003366 0%, #1e4980 50%, #003366 100%);
+}
+.rc-bottom-band::before {
+  content: '';
+  position: absolute;
+  top: -1mm;
+  left: 0;
+  right: 0;
+  height: 1mm;
+  background: linear-gradient(90deg, #c39d5b 0%, #e5c88a 50%, #c39d5b 100%);
+}
+
+/* ---------- 3. Filigrane "BULLETIN OFFICIEL" ---------- */
+.rc-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-28deg);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 88pt;
+  font-weight: 700;
+  letter-spacing: 4pt;
+  color: rgba(0, 51, 102, 0.045);
+  pointer-events: none;
+  white-space: nowrap;
+  user-select: none;
+  z-index: 0;
+}
+
+/* Tous les contenus passent au-dessus du filigrane */
+.rc-a4 > *:not(.rc-watermark):not(.rc-top-band):not(.rc-bottom-band) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- 4. Header école ---------- */
+.rc-header {
+  display: grid;
+  grid-template-columns: 22mm 1fr 26mm;
+  gap: 6mm;
+  align-items: center;
+  margin-top: 6mm;
+  padding-bottom: 4mm;
+  border-bottom: 0.4mm solid #c39d5b;
+}
+
+.rc-logo {
+  width: 22mm;
+  height: 22mm;
+  object-fit: contain;
+}
+
+.rc-logo-fallback {
+  width: 22mm;
+  height: 22mm;
+  border: 0.4mm solid #c39d5b;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Georgia, serif;
+  font-size: 22pt;
+  font-weight: 700;
+  color: #003366;
+  background: linear-gradient(135deg, #fff 0%, #faf6ec 100%);
+}
+
+.rc-school-name {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 18pt;
+  font-weight: 700;
+  color: #003366;
+  margin: 0 0 1.5mm 0;
+  letter-spacing: 0.4pt;
+  line-height: 1.15;
+}
+
+.rc-school-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4mm;
+  font-size: 7.5pt;
+  color: #555;
+  letter-spacing: 0.2pt;
+}
+
+.rc-school-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 1mm;
+}
+
+.rc-school-meta-item svg {
+  width: 2.5mm;
+  height: 2.5mm;
+  color: #c39d5b;
+  flex-shrink: 0;
+}
+
+/* ---------- 5. Sceau ovale ---------- */
+.rc-stamp {
+  width: 26mm;
+  height: 26mm;
+  border: 1mm double #c39d5b;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(-10deg);
+  opacity: 0.55;
+  background: radial-gradient(
+    circle at center,
+    rgba(195, 157, 91, 0.05) 0%,
+    transparent 70%
+  );
+}
+
+.rc-stamp-text {
+  font-family: Georgia, serif;
+  font-size: 6.5pt;
+  font-weight: 700;
+  color: #c39d5b;
+  text-align: center;
+  letter-spacing: 1pt;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+/* ---------- 6. Titre ---------- */
+.rc-title-block {
+  text-align: center;
+  margin: 5mm 0 3.5mm 0;
+}
+
+.rc-eyebrow {
+  font-size: 7.5pt;
+  letter-spacing: 2pt;
+  text-transform: uppercase;
+  color: #c39d5b;
+  margin: 0 0 1.5mm 0;
+  font-weight: 600;
+}
+
+.rc-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 21pt;
+  font-weight: 600;
+  color: #003366;
+  margin: 0;
+  font-style: italic;
+  letter-spacing: 0.3pt;
+}
+
+.rc-title-decoration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4mm;
+  margin-top: 1.5mm;
+}
+.rc-title-decoration::before,
+.rc-title-decoration::after {
+  content: '';
+  width: 18mm;
+  height: 0.3mm;
+  background: linear-gradient(90deg, transparent, #c39d5b, transparent);
+}
+.rc-title-decoration span {
+  width: 2mm;
+  height: 2mm;
+  border: 0.3mm solid #c39d5b;
+  background: #c39d5b;
+  transform: rotate(45deg);
+}
+
+/* ---------- 7. Bandeau élève ---------- */
+.rc-student {
+  display: grid;
+  grid-template-columns: 24mm 1fr;
+  gap: 6mm;
+  background: linear-gradient(135deg, #003366 0%, #1e4980 100%);
+  color: white;
+  padding: 4.5mm 5mm;
+  border-radius: 1.5mm;
+  margin-bottom: 5mm;
+  position: relative;
+  overflow: hidden;
+}
+
+.rc-student::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 30mm;
+  background: linear-gradient(
+    -45deg,
+    rgba(195, 157, 91, 0.3) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.rc-student-photo {
+  width: 24mm;
+  height: 30mm;
+  background: rgba(255, 255, 255, 0.08);
+  border: 0.4mm solid rgba(255, 255, 255, 0.4);
+  border-radius: 1mm;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.rc-student-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rc-student-photo span {
+  font-family: Georgia, serif;
+  font-size: 36pt;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 700;
+}
+
+.rc-student-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5mm 8mm;
+  margin: 0;
+  align-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.rc-student-info > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.rc-student-info dt {
+  font-size: 7pt;
+  text-transform: uppercase;
+  letter-spacing: 1.2pt;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 0 0 0.5mm 0;
+  font-weight: 500;
+}
+
+.rc-student-info dd {
+  font-size: 11pt;
+  font-weight: 600;
+  margin: 0;
+  color: white;
+  letter-spacing: 0.2pt;
+}
+
+/* ---------- 8. Tableau notes ---------- */
+.rc-grades {
+  margin-bottom: 4mm;
+}
+
+.rc-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 9pt;
+  border-radius: 1mm;
+  overflow: hidden;
+  box-shadow: 0 0.5mm 1.5mm rgba(0, 0, 0, 0.05);
+}
+
+.rc-table thead th {
+  background: linear-gradient(135deg, #003366 0%, #1e4980 100%);
+  color: white;
+  padding: 2.5mm 2.5mm;
+  text-align: left;
+  font-weight: 600;
+  font-size: 8.5pt;
+  letter-spacing: 0.4pt;
+  text-transform: uppercase;
+  border-bottom: 0.6mm solid #c39d5b;
+}
+
+.rc-th-grade,
+.rc-th-weighted {
+  text-align: center !important;
+  width: 14mm;
+}
+
+.rc-table tbody td {
+  padding: 2mm 2.5mm;
+  border-bottom: 0.15mm solid #e5e0d4;
+  vertical-align: middle;
+  background: white;
+}
+
+.rc-table tbody tr:nth-child(even) td {
+  background: #faf6ec;
+}
+
+.rc-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.rc-td-subject {
+  font-weight: 600;
+  color: #003366;
+  font-size: 9.5pt;
+}
+
+.rc-td-teacher {
+  font-size: 8pt;
+  color: #777;
+  font-style: italic;
+}
+
+.rc-td-coef,
+.rc-td-weighted {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: #555;
+}
+
+.rc-td-appreciation {
+  font-style: italic;
+  font-size: 8.5pt;
+  color: #444;
+  line-height: 1.35;
+}
+
+.rc-grade-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1mm;
+}
+
+.rc-grade-value {
+  font-size: 11pt;
+  font-weight: 700;
+  color: #003366;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3pt;
+}
+
+.rc-grade-bar {
+  width: 100%;
+  max-width: 11mm;
+  height: 1.2mm;
+  background: #ece6da;
+  border-radius: 1mm;
+  overflow: hidden;
+}
+
+.rc-grade-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 1mm;
+  transition: width 0.4s ease;
+}
+
+.rc-grade-bar-fill[data-tone='success'] {
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+}
+.rc-grade-bar-fill[data-tone='good'] {
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+}
+.rc-grade-bar-fill[data-tone='ok'] {
+  background: linear-gradient(90deg, #c39d5b, #d4af75);
+}
+.rc-grade-bar-fill[data-tone='warn'] {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+.rc-grade-bar-fill[data-tone='bad'] {
+  background: linear-gradient(90deg, #dc2626, #ef4444);
+}
+
+/* tfoot — moyenne générale */
+.rc-table tfoot td {
+  padding: 3mm 2.5mm;
+  background: linear-gradient(135deg, #003366 0%, #1e4980 100%);
+  color: white;
+  font-weight: 700;
+  border-top: 0.6mm solid #c39d5b;
+  font-size: 9pt;
+}
+
+.rc-tfoot-label {
+  text-transform: uppercase;
+  letter-spacing: 1pt;
+  font-size: 9pt;
+}
+
+.rc-tfoot-coef,
+.rc-tfoot-points {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-tfoot-avg {
+  text-align: right;
+  font-size: 11pt;
+}
+
+.rc-tfoot-avg-value {
+  font-family: Georgia, serif;
+  font-size: 16pt;
+  font-weight: 700;
+  letter-spacing: 0.3pt;
+}
+
+.rc-mention {
+  display: inline-block;
+  margin-left: 3mm;
+  padding: 0.8mm 2.5mm;
+  background: linear-gradient(135deg, #c39d5b, #d4af75);
+  color: #003366;
+  border-radius: 0.6mm;
+  font-size: 8.5pt;
+  letter-spacing: 0.6pt;
+  text-transform: uppercase;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* ---------- 9. Section appréciation + assiduité ---------- */
+.rc-bottom {
+  display: grid;
+  grid-template-columns: 1fr 56mm;
+  gap: 4mm;
+  margin-bottom: 4mm;
+}
+
+.rc-block {
+  border: 0.2mm solid #ddd5c2;
+  border-radius: 1mm;
+  padding: 3mm 4mm;
+  background: linear-gradient(180deg, #fff 0%, #fefcf7 100%);
+}
+
+.rc-block-title {
+  font-family: Georgia, serif;
+  font-size: 10pt;
+  font-weight: 700;
+  color: #003366;
+  margin: 0 0 2mm 0;
+  padding-left: 2.5mm;
+  border-left: 1mm solid #c39d5b;
+  letter-spacing: 0.2pt;
+}
+
+.rc-appreciation-text {
+  font-style: italic;
+  font-size: 9pt;
+  line-height: 1.5;
+  margin: 0;
+  color: #333;
+  white-space: pre-wrap;
+}
+
+.rc-attendance-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5mm;
+}
+
+.rc-attendance-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(180deg, #faf6ec 0%, #ece6da 100%);
+  padding: 2mm 1mm;
+  border-radius: 0.5mm;
+  border: 0.15mm solid #e0d8c2;
+}
+
+.rc-attendance-label {
+  font-size: 6.5pt;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.6pt;
+  margin-bottom: 0.5mm;
+}
+
+.rc-attendance-value {
+  font-size: 13pt;
+  font-weight: 700;
+  color: #003366;
+  font-variant-numeric: tabular-nums;
+  font-family: Georgia, serif;
+}
+
+/* ---------- 10. Signatures ---------- */
+.rc-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6mm;
+  margin-top: 4mm;
+  padding-top: 2mm;
+}
+
+.rc-sign {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.5mm;
+  padding-top: 12mm;
+  position: relative;
+}
+
+.rc-sign::before {
+  content: '';
+  position: absolute;
+  top: 10mm;
+  left: 0;
+  right: 0;
+  height: 0.3mm;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #c39d5b 20%,
+    #c39d5b 80%,
+    transparent
+  );
+}
+
+.rc-sign-label {
+  font-size: 8pt;
+  font-weight: 700;
+  color: #003366;
+  text-transform: uppercase;
+  letter-spacing: 0.6pt;
+  text-align: center;
+}
+
+.rc-sign-name {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 8.5pt;
+  color: #555;
+  text-align: center;
+  min-height: 4mm;
+}
+
+.rc-issued-at {
+  text-align: center;
+  font-size: 7pt;
+  color: #999;
+  margin-top: 6mm;
+  letter-spacing: 0.5pt;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   11. TABLEAU SÉNÉGALAIS — colonnes spécifiques + tfoot 2 lignes
+   ============================================================ */
+.rc-th-max {
+  width: 16mm;
+  text-align: center;
+}
+
+.rc-td-max {
+  text-align: center;
+  font-weight: 600;
+  color: #003366;
+  font-size: 10pt;
+}
+
+/* COEFFICIENT — colonne fine, fond légèrement teinté pour
+   la distinguer visuellement des notes. */
+.rc-th-coef {
+  width: 12mm;
+  text-align: center !important;
+}
+
+.rc-td-coef {
+  text-align: center;
+  font-weight: 700;
+  color: #c39d5b;
+  font-size: 10pt;
+  background: rgba(195, 157, 91, 0.06);
+}
+
+/* Réduit un peu la colonne observations en mode 5 colonnes */
+.rc-th-appreciation {
+  width: 48mm;
+}
+
+/* Aide visuelle sous le TOTAL : formule courte et discrète */
+.rc-tfoot-hint {
+  font-size: 7.5pt;
+  font-style: italic;
+  color: #6b6b6b;
+  font-weight: 400;
+  text-align: center;
+  letter-spacing: 0;
+}
+
+.rc-subject-name {
+  display: block;
+  font-weight: 600;
+  color: #333;
+}
+
+.rc-subject-teacher {
+  display: block;
+  font-size: 7.5pt;
+  color: #888;
+  font-style: italic;
+  margin-top: 0.5mm;
+}
+
+/* tfoot — 2 lignes : TOTAL puis MOYENNE /20 */
+.rc-tfoot-total td {
+  background: linear-gradient(180deg, #f5f0dc 0%, #ece4c4 100%);
+  color: #1a1a1a;
+  font-weight: 700;
+  padding: 2.5mm 3mm;
+  border-top: 1.5pt solid #003366;
+  font-size: 10pt;
+  letter-spacing: 0.3pt;
+}
+
+.rc-tfoot-total .rc-tfoot-label {
+  text-align: right;
+  text-transform: uppercase;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.rc-tfoot-center {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-tfoot-moyenne td {
+  background: linear-gradient(180deg, #003366 0%, #1e4980 100%);
+  color: white;
+  font-weight: 700;
+  padding: 3mm;
+  font-size: 11pt;
+}
+
+.rc-tfoot-moyenne .rc-tfoot-label {
+  text-align: right;
+  text-transform: uppercase;
+  font-family: Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.5pt;
+}
+
+.rc-tfoot-moyenne .rc-tfoot-avg {
+  text-align: center;
+}
+
+.rc-tfoot-moyenne .rc-tfoot-avg-value {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 16pt;
+  font-weight: 700;
+  color: #ffd700;
+  letter-spacing: 0.5pt;
+}
+
+.rc-tfoot-moyenne .rc-mention {
+  display: inline-block;
+  background: #ffd700;
+  color: #003366;
+  padding: 1mm 3mm;
+  border-radius: 2mm;
+  font-weight: 700;
+  font-size: 9pt;
+  letter-spacing: 0.3pt;
+}
+
+/* ============================================================
+   12. MODE ÉDITION — inputs inline style Excel
+   ============================================================ */
+
+/* Conteneur : quand en mode édition, on espace un peu plus les
+   cellules pour laisser respirer les inputs. */
+.rc-grades[data-editable='true'] .rc-table td {
+  padding: 1.5mm 2mm;
+  vertical-align: middle;
+}
+
+/* Style de base — transparent, n'interfère pas avec le design
+   imprimé. Hérite de la typo de la cellule parente. */
+.rc-edit-input {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed rgba(0, 51, 102, 0.25);
+  border-radius: 1mm;
+  padding: 1mm 1.5mm;
+  font: inherit;
+  color: inherit;
+  line-height: 1.3;
+  box-sizing: border-box;
+  transition: background 120ms ease, border-color 120ms ease,
+    box-shadow 120ms ease;
+  font-family: inherit;
+  /* Empêche le browser d'afficher les flèches up/down pour les
+     number inputs (look plus épuré, plus "Excel"). */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.rc-edit-input::-webkit-outer-spin-button,
+.rc-edit-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.rc-edit-input:hover {
+  border-color: rgba(0, 51, 102, 0.45);
+  background: rgba(255, 215, 0, 0.04);
+}
+
+.rc-edit-input:focus {
+  outline: none;
+  border: 1.5px solid #003366;
+  background: #fffbeb;
+  box-shadow:
+    0 0 0 2px rgba(255, 215, 0, 0.35),
+    inset 0 0 0 1px rgba(0, 51, 102, 0.1);
+}
+
+.rc-edit-input--text {
+  text-align: left;
+  font-size: 9.5pt;
+}
+
+.rc-edit-input--num {
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 10.5pt;
+  color: #003366;
+}
+
+.rc-edit-input--area {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 9.5pt;
+  min-height: 14mm;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+/* Bouton "×" de suppression de ligne — discret, rouge au hover */
+.rc-th-actions,
+.rc-td-actions {
+  width: 8mm;
+  text-align: center;
+  padding: 0 !important;
+}
+
+.rc-row-remove {
+  width: 5.5mm;
+  height: 5.5mm;
+  border-radius: 50%;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  background: transparent;
+  color: #888;
+  font-size: 11pt;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 120ms ease;
+}
+
+.rc-row-remove:hover {
+  background: #dc2626;
+  color: white;
+  border-color: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Ligne "ajouter une matière" en bas du tbody */
+.rc-add-row td {
+  padding: 2mm !important;
+  background: #fafafa;
+  border-top: 1px dashed rgba(0, 51, 102, 0.2) !important;
+}
+
+.rc-row-add {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed rgba(0, 51, 102, 0.4);
+  color: #003366;
+  padding: 2mm;
+  border-radius: 1.5mm;
+  cursor: pointer;
+  font-size: 9pt;
+  font-weight: 600;
+  letter-spacing: 0.3pt;
+  text-transform: uppercase;
+  transition: all 150ms ease;
+}
+
+.rc-row-add:hover {
+  background: rgba(255, 215, 0, 0.15);
+  border-color: #003366;
+  border-style: solid;
+}
+
+/* ============================================================
+   13. COMPOSITIONS trimestrielles
+   ============================================================ */
+.rc-compositions {
+  margin: 0 6mm 4mm;
+  padding: 3mm 4mm;
+  background: linear-gradient(
+    180deg,
+    rgba(245, 240, 220, 0.4) 0%,
+    rgba(236, 228, 196, 0.25) 100%
+  );
+  border: 1px solid rgba(0, 51, 102, 0.15);
+  border-left: 3px solid #ffd700;
+  border-radius: 1.5mm;
+}
+
+.rc-compositions-title {
+  margin: 0 0 2mm;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 10pt;
+  font-weight: 700;
+  color: #003366;
+  text-transform: uppercase;
+  letter-spacing: 0.4pt;
+}
+
+.rc-compositions-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3mm;
+}
+
+.rc-comp-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1mm;
+  padding: 2mm;
+  background: white;
+  border: 1px solid rgba(0, 51, 102, 0.15);
+  border-radius: 1mm;
+}
+
+.rc-comp-label {
+  font-size: 8pt;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.3pt;
+}
+
+.rc-comp-value {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 13pt;
+  font-weight: 700;
+  color: #003366;
+  font-variant-numeric: tabular-nums;
+  min-height: 6mm;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rc-comp-input {
+  max-width: 22mm;
+  text-align: center;
+}
+
+.rc-compositions-hint {
+  margin: 2mm 0 0;
+  text-align: right;
+  font-size: 7.5pt;
+  font-style: italic;
+  color: #888;
+}
+
+/* ============================================================
+   14. DÉCISION + OBSERVATIONS du conseil (radios)
+   ============================================================ */
+.rc-council {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+  margin: 0 6mm 4mm;
+}
+
+.rc-council-block {
+  padding: 3mm 4mm;
+  background: white;
+  border: 1px solid rgba(0, 51, 102, 0.15);
+  border-top: 2.5pt solid #003366;
+  border-radius: 1mm;
+}
+
+.rc-council-block .rc-block-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 9.5pt;
+  font-weight: 700;
+  color: #003366;
+  text-transform: uppercase;
+  letter-spacing: 0.3pt;
+  margin: 0 0 2mm;
+  padding-bottom: 1mm;
+  border-bottom: 1px dotted rgba(0, 51, 102, 0.3);
+}
+
+.rc-council-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1mm 3mm;
+}
+
+.rc-council-item {
+  display: flex;
+}
+
+.rc-council-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5mm;
+  font-size: 8.5pt;
+  color: #333;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.5mm 0;
+}
+
+.rc-council-label input[type='radio'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 3.5mm;
+  height: 3.5mm;
+  border: 1.2px solid #003366;
+  border-radius: 50%;
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: white;
+  transition: all 120ms ease;
+  margin: 0;
+}
+
+.rc-council-label input[type='radio']:hover:not(:disabled) {
+  border-color: #ffd700;
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.2);
+}
+
+.rc-council-label input[type='radio']:checked {
+  border-color: #003366;
+  background: #003366;
+}
+
+.rc-council-label input[type='radio']:checked::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1.6mm;
+  height: 1.6mm;
+  background: #ffd700;
+  border-radius: 50%;
+}
+
+.rc-council-label input[type='radio']:disabled {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.rc-council-label:has(input:checked) {
+  font-weight: 700;
+  color: #003366;
+}
+
+/* Sur une colonne pour les blocs courts */
+@media (max-width: 200mm) {
+  .rc-council-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rc-attendance-input {
+  max-width: 12mm;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  color: #003366;
+}
+
+/* ============================================================
+   IMPRESSION — masque le shell de l'app, ne laisse que le hosts
+   ============================================================ */
+@media print {
+  /* Masque tout par défaut */
+  body * {
+    visibility: hidden;
+  }
+  /* Sauf le contenu du host d'impression */
+  .rc-print-host,
+  .rc-print-host * {
+    visibility: visible;
+  }
+  /* Le host se cale en haut de la page imprimée */
+  .rc-print-host,
+  .rc-print-host[data-screen-hidden='true'] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    background: white;
+    padding: 0;
+    gap: 0;
+    min-height: auto;
+    display: block;
+    pointer-events: auto;
+    z-index: auto;
+  }
+  /* Pas d'ombre, pas de marge — le navigateur gère via @page */
+  .rc-print-host .rc-a4 {
+    box-shadow: none;
+    margin: 0;
+    border-radius: 0;
+    width: 210mm;
+    min-height: 297mm;
+    page-break-after: always;
+  }
+  .rc-print-host .rc-a4:last-child {
+    page-break-after: auto;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  /* -----------------------------------------------------------
+     Inputs éditables à l'impression : suppriment les styles
+     "Excel" (dashed border, focus ring) pour rendre le bulletin
+     final propre et officiel. Forcent un rendu net avec les
+     valeurs tapées par l'admin.
+     ----------------------------------------------------------- */
+  .rc-print-host .rc-edit-input,
+  .rc-print-host .rc-edit-input:focus,
+  .rc-print-host .rc-edit-input:hover {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    color: inherit !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Cellules du tableau : on remet la typo de cellule normale
+     au lieu de la monospace Courier spécifique au mode édition. */
+  .rc-print-host .rc-edit-input--num {
+    font-family: inherit !important;
+    font-weight: 700;
+  }
+
+  /* Empêche les cellules vides de l'input de laisser un blanc gênant */
+  .rc-print-host .rc-edit-input--text:empty::before {
+    content: '—';
+    color: #999;
+  }
+
+  /* Radios : force le rendu des cases cochées même sous
+     Chrome/Edge (qui par défaut ne les imprime pas). */
+  .rc-print-host .rc-council-label input[type='radio'] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Boutons "ajouter / supprimer ligne" : pas dans l'impression */
+  .rc-print-host .rc-row-remove,
+  .rc-print-host .rc-row-add,
+  .rc-print-host .rc-add-row,
+  .rc-print-host .rc-th-actions,
+  .rc-print-host .rc-td-actions {
+    display: none !important;
+  }
+
+  /* Forcer les dégradés et couleurs du bulletin (fond marine tfoot,
+     sceau or, bandeau, etc.) à bien s'imprimer. */
+  .rc-print-host .rc-top-band,
+  .rc-print-host .rc-bottom-band,
+  .rc-print-host .rc-student,
+  .rc-print-host .rc-tfoot-total td,
+  .rc-print-host .rc-tfoot-moyenne td,
+  .rc-print-host .rc-compositions,
+  .rc-print-host .rc-council-block,
+  .rc-print-host .rc-stamp,
+  .rc-print-host .rc-watermark,
+  .rc-print-host .rc-grade-bar-fill {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

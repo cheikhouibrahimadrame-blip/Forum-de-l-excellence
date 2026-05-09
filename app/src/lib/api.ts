@@ -4,10 +4,22 @@ import { clearAccessToken, getAccessToken, setAccessToken } from './tokenService
 import { logger } from './logger';
 import { API } from './apiRoutes';
 
+// Resolution order:
+//   1. Explicit VITE_API_BASE_URL (including "" → use same-origin via Vite proxy)
+//   2. Legacy VITE_API_URL
+//   3. Dev default → same-origin relative URLs so mobile devices / emulators
+//      reaching the Vite dev server on the LAN can hit `/api/...` transparently
+//      through Vite's proxy (avoids the trap where `localhost:5001` means the
+//      *device's* localhost, not the host PC's).
+//   4. Prod default → explicit absolute URL so static builds keep working.
+const envBaseUrl =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
+  (import.meta.env.VITE_API_URL as string | undefined);
+
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  'http://localhost:5001';
+  envBaseUrl !== undefined
+    ? envBaseUrl
+    : (import.meta.env.DEV ? '' : 'http://localhost:5001');
 
 export const AUTH_LOGOUT_EVENT = 'auth:logout';
 

@@ -55,12 +55,14 @@ const ParentMessages = lazy(() => import('./pages/dashboard/parent/ParentMessage
 const ParentBehavior = lazy(() => import('./pages/dashboard/parent/ParentBehavior'));
 const ParentHealth = lazy(() => import('./pages/dashboard/parent/ParentHealth'));
 const ParentPickup = lazy(() => import('./pages/dashboard/parent/ParentPickup'));
+const ParentReportCards = lazy(() => import('./pages/dashboard/parent/ParentReportCards'));
 
 // Teacher
 const TeacherDashboard = lazy(() => import('./pages/dashboard/teacher/TeacherDashboard'));
 const TeacherClasses = lazy(() => import('./pages/dashboard/teacher/TeacherClasses'));
 const TeacherStudents = lazy(() => import('./pages/dashboard/teacher/TeacherStudents'));
 const TeacherGrades = lazy(() => import('./pages/dashboard/teacher/TeacherGrades'));
+const TeacherReportCardEditor = lazy(() => import('./pages/dashboard/teacher/TeacherReportCardEditor'));
 const TeacherSchedule = lazy(() => import('./pages/dashboard/teacher/TeacherSchedule'));
 const TeacherLessons = lazy(() => import('./pages/dashboard/teacher/TeacherLessons'));
 const TeacherAttendance = lazy(() => import('./pages/dashboard/teacher/TeacherAttendance'));
@@ -183,12 +185,14 @@ function AppContent() {
           <Route path="/parent/behavior" element={<ProtectedRoute allowedRoles={['PARENT']}><DashboardLayout><ParentBehavior /></DashboardLayout></ProtectedRoute>} />
           <Route path="/parent/health" element={<ProtectedRoute allowedRoles={['PARENT']}><DashboardLayout><ParentHealth /></DashboardLayout></ProtectedRoute>} />
           <Route path="/parent/pickup" element={<ProtectedRoute allowedRoles={['PARENT']}><DashboardLayout><ParentPickup /></DashboardLayout></ProtectedRoute>} />
+          <Route path="/parent/report-cards" element={<ProtectedRoute allowedRoles={['PARENT']}><DashboardLayout><ParentReportCards /></DashboardLayout></ProtectedRoute>} />
 
           {/* Teacher Dashboard */}
           <Route path="/teacher" element={<ProtectedRoute allowedRoles={['TEACHER']}><DashboardLayout><TeacherDashboard /></DashboardLayout></ProtectedRoute>} />
           <Route path="/teacher/classes" element={<ProtectedRoute allowedRoles={['TEACHER']}><DashboardLayout><TeacherClasses /></DashboardLayout></ProtectedRoute>} />
           <Route path="/teacher/students" element={<ProtectedRoute allowedRoles={['TEACHER']}><DashboardLayout><TeacherStudents /></DashboardLayout></ProtectedRoute>} />
           <Route path="/teacher/grades" element={<ProtectedRoute allowedRoles={['TEACHER']}><DashboardLayout><TeacherGrades /></DashboardLayout></ProtectedRoute>} />
+          <Route path="/teacher/report-cards" element={<ProtectedRoute allowedRoles={['TEACHER']}><DashboardLayout><TeacherReportCardEditor /></DashboardLayout></ProtectedRoute>} />
           <Route path="/teacher/lessons" element={<ProtectedRoute allowedRoles={['TEACHER']}><DashboardLayout><TeacherLessons /></DashboardLayout></ProtectedRoute>} />
           <Route path="/teacher/attendance" element={<ProtectedRoute allowedRoles={['TEACHER']}><DashboardLayout><TeacherAttendance /></DashboardLayout></ProtectedRoute>} />
           <Route path="/teacher/schedule" element={<ProtectedRoute allowedRoles={['TEACHER']}><DashboardLayout><TeacherSchedule /></DashboardLayout></ProtectedRoute>} />

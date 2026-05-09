@@ -277,7 +277,127 @@ export const getTeacherSchedule = async (req: AuthenticatedRequest, res: Respons
 
 export const createSchedule = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
   try {
-    const { courseId, teacherId, classroom, dayOfWeek, startTime, endTime, semester, year } = req.body;
+    let { courseId, teacherId } = req.body;
+    const { classId, subjectId, classroom, dayOfWeek, startTime, endTime, semester, year } = req.body;
+
+    // Bootstrap path (ADMIN only): admins create schedules by picking a Class +
+    // a Subject. Since the schema requires a Course row, we resolve (or create)
+    // it deterministically from the selected (subject, class, semester, year)
+    // tuple, using the class's main teacher. This avoids forcing the admin to
+    // pre-create Course rows from a separate UI.
+    if (!courseId && req.user!.role === 'ADMIN' && classId && subjectId) {
+      const [classItem, subject] = await Promise.all([
+        prisma.class.findUnique({
+          where: { id: classId },
+          select: { id: true, name: true, mainTeacherId: true }
+        }),
+        prisma.subject.findUnique({
+          where: { id: subjectId },
+          select: { id: true, code: true, name: true }
+        })
+      ]);
+
+      if (!classItem) {
+        return res.status(404).json({ success: false, error: 'Classe introuvable' });
+      }
+      if (!subject) {
+        return res.status(404).json({ success: false, error: 'Matière introuvable' });
+      }
+
+      // Class.mainTeacherId stores a User.id, not a Teacher.id. Resolve the
+      // Teacher row from either form so the same field works regardless of
+      // what the client sent.
+      const teacherUserOrTeacherId = teacherId || classItem.mainTeacherId;
+      if (!teacherUserOrTeacherId) {
+        return res.status(400).json({
+          success: false,
+          error: "Cette classe n'a pas d'enseignant principal. Assignez-en un avant de créer un horaire."
+        });
+      }
+
+      let teacherRow = await prisma.teacher.findUnique({
+        where: { id: teacherUserOrTeacherId },
+        select: { id: true }
+      });
+      if (!teacherRow) {
+        teacherRow = await prisma.teacher.findUnique({
+          where: { userId: teacherUserOrTeacherId },
+          select: { id: true }
+        });
+      }
+      if (!teacherRow) {
+        return res.status(400).json({
+          success: false,
+          error: "Profil enseignant introuvable pour cette classe. Créez le profil enseignant avant."
+        });
+      }
+      teacherId = teacherRow.id;
+
+      // Find-or-create the default department. Course.departmentId is required
+      // and there is currently no admin UI for departments, so we provide a
+      // sane fallback ("Général") that will be reused across all auto-created
+      // courses.
+      let dept = await prisma.department.findFirst({
+        where: { code: 'GEN' },
+        select: { id: true }
+      });
+      if (!dept) {
+        dept = await prisma.department.create({
+          data: {
+            code: 'GEN',
+            name: 'Général',
+            description: 'Département par défaut (créé automatiquement)'
+          },
+          select: { id: true }
+        });
+      }
+
+      // Deterministic Course code: SUBJECT-CLASS-SEMESTERYEAR (max 20 chars,
+      // matches Course.code @db.VarChar(20)).
+      const safeSubject = String(subject.code || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+      const safeClass = String(classItem.name || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+      const codeBase = `${safeSubject}-${safeClass}-${semester}${year}`.slice(0, 20);
+
+      const existing = await prisma.course.findUnique({
+        where: { code: codeBase },
+        select: { id: true, teacherId: true }
+      });
+
+      if (existing) {
+        if (existing.teacherId !== teacherId) {
+          await prisma.course.update({
+            where: { id: existing.id },
+            data: { teacherId }
+          });
+        }
+        courseId = existing.id;
+      } else {
+        const created = await prisma.course.create({
+          data: {
+            code: codeBase,
+            name: `${subject.name} - ${classItem.name}`,
+            credits: 1,
+            departmentId: dept.id,
+            semester,
+            year: Number(year),
+            teacherId,
+            isActive: true
+          },
+          select: { id: true }
+        });
+        courseId = created.id;
+      }
+    }
+
+    if (!courseId) {
+      return res.status(400).json({
+        success: false,
+        error: 'courseId requis (ou classId + subjectId pour la création automatique)'
+      });
+    }
+    if (!teacherId) {
+      return res.status(400).json({ success: false, error: 'teacherId requis' });
+    }
 
     if (req.user!.role === 'TEACHER') {
       const teacher = await prisma.teacher.findUnique({

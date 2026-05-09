@@ -1,0 +1,19 @@
+# Netlify build config for the Forum de l'Excellence frontend (Vite + React + TS).
+# Backend API is NOT deployed here; configure VITE_API_BASE_URL in Netlify
+# environment variables to point at your hosted backend before building.
+
+[build]
+  base    = "."
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback — React Router handles client-side routes, so every request
+# that isn't a real static asset must serve index.html (otherwise refreshing
+# /admin, /login, /programs/... returns a Netlify 404).
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

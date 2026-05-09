@@ -95,8 +95,10 @@ const AdminUsers: React.FC = () => {
       if (response.status >= 200 && response.status < 300) {
         setUsers(users.map(u => u.id === userId ? { ...u, isActive: !currentStatus } : u));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error toggling user status:', error);
+      const msg = error?.response?.data?.error || error?.message || 'Erreur inconnue';
+      alert(`Impossible de modifier le statut de l'utilisateur : ${msg}`);
     }
   };
 
@@ -112,8 +114,10 @@ const AdminUsers: React.FC = () => {
         alert('Mot de passe réinitialisé. L\'utilisateur devra le changer à sa prochaine connexion.');
         setUsers(users.map(u => u.id === userId ? { ...u, mustChangePassword: true } : u));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error resetting password:', error);
+      const msg = error?.response?.data?.error || error?.message || 'Erreur inconnue';
+      alert(`Impossible de réinitialiser le mot de passe : ${msg}`);
     }
   };
 

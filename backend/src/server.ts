@@ -42,11 +42,13 @@ const startServer = async () => {
   const { default: healthRoutes } = await import('./routes/health');
   const { default: pickupRoutes } = await import('./routes/pickup');
   const { default: classesRoutes } = await import('./routes/classes');
+  const { default: coursesRoutes } = await import('./routes/courses');
   const { default: subjectsRoutes } = await import('./routes/subjects');
   const { default: academicYearsRoutes } = await import('./routes/academicYears');
   const { default: reportsRoutes } = await import('./routes/reports');
   const { default: gradeLocksRoutes } = await import('./routes/gradeLocks');
   const { default: securityRoutes } = await import('./routes/security');
+  const { default: reportCardsRoutes } = await import('./routes/reportCards');
 
   const app = express();
 
@@ -118,8 +120,35 @@ const startServer = async () => {
     next();
   });
 
+  // ── CORS ─────────────────────────────────────────────────────────────
+  // In production, lock the origin down to FRONTEND_URL.
+  // In development, accept any localhost / 127.0.0.1 origin so that local
+  // dev tools and IDE-launched browser previews (which run on dynamic
+  // loopback ports) can reach the API without CORS friction. Same-origin
+  // calls (no Origin header) are also allowed.
+  const isProd = process.env.NODE_ENV === 'production';
+  const prodOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+  // Accept:
+  //   - loopback (localhost / 127.0.0.1)
+  //   - 10.0.0.0/8        (Android emulator reaches host via 10.0.2.2)
+  //   - 172.16.0.0/12     (Docker / corporate VPN subnets)
+  //   - 192.168.0.0/16    (typical home Wi-Fi — real phones + Mobile Pilot)
+  const devOriginRegex =
+    /^https?:\/\/(localhost|127\.0\.0\.1|10\.(?:\d{1,3}\.){2}\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3})\.\d{1,3}|192\.168\.(?:\d{1,3})\.\d{1,3})(:\d+)?$/i;
+
   app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      // Same-origin / non-browser tools (curl, server-to-server) → allow
+      if (!origin) return callback(null, true);
+      if (isProd) {
+        return callback(null, origin === prodOrigin);
+      }
+      // Dev: allow configured FRONTEND_URL plus loopback + private-LAN origins
+      if (origin === prodOrigin || devOriginRegex.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
@@ -187,11 +216,13 @@ const startServer = async () => {
   app.use('/api/health', healthRoutes);
   app.use('/api/pickup', pickupRoutes);
   app.use('/api/classes', classesRoutes);
+  app.use('/api/courses', coursesRoutes);
   app.use('/api/subjects', subjectsRoutes);
   app.use('/api/academic-years', academicYearsRoutes);
   app.use('/api/reports', reportsRoutes);
   app.use('/api/grade-locks', gradeLocksRoutes);
   app.use('/api/admin/security', securityRoutes);
+  app.use('/api/report-cards', reportCardsRoutes);
 
   // 404 handler
   app.use((req, res) => {

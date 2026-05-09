@@ -1,11 +1,27 @@
 import type React from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Download, Search, ChevronLeft, AlertCircle, Users, Award, TrendingUp, Eye } from 'lucide-react';
+import { FileText, Search, ChevronLeft, AlertCircle, Users, TrendingUp, Eye, Printer, ArrowLeft, Save } from 'lucide-react';
 import { Card } from '../../../components/ui/card';
 import UserSelect from '../../../components/forms/UserSelect';
 import { api } from '../../../lib/api';
 import { API } from '../../../lib/apiRoutes';
+import { useBranding } from '../../../contexts/BrandingContext';
+import {
+  ReportCardA4,
+  mapGradesToEntries,
+  extractPeriod,
+  type ReportCardEntry,
+  type ReportCardCompositions,
+  type ReportCardDecision,
+  type ReportCardCouncilObservation,
+} from '../../../components/reportcard';
+import {
+  loadStudentBulletin as fetchMergedBulletin,
+  saveReportCard,
+  computeAverage,
+  getMention as deriveMention,
+} from '../../../lib/reportCardClient';
 
 type GradeRow = {
   course: string;
@@ -22,10 +38,15 @@ type BulletinData = {
   gpa: number;
   mention: string;
   grades: GradeRow[];
+  /** Entrées pour le composant A4 réutilisable. */
+  a4Entries: ReportCardEntry[];
+  /** Période (trimestre + année). */
+  a4Period: { trimester: string; academicYear?: string };
 };
 
 const AdminBulletins: React.FC = () => {
   const navigate = useNavigate();
+  const { branding } = useBranding();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -35,9 +56,63 @@ const AdminBulletins: React.FC = () => {
   // Batch mode — generate for all students of a class
   const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
   const [selectedClassId, setSelectedClassId] = useState('');
-  const [classStudents, setClassStudents] = useState<{ id: string; name: string; studentId: string }[]>([]);
   const [classBulletins, setClassBulletins] = useState<BulletinData[]>([]);
   const [batchLoading, setBatchLoading] = useState(false);
+
+  // Aperçu A4 — mode immersif (pleine page) pour un seul bulletin
+  const [showA4Preview, setShowA4Preview] = useState(false);
+  // Contrôle quel host s'imprime : 'single' (individuel) ou 'batch' (classe).
+  const [printScope, setPrintScope] = useState<'single' | 'batch' | null>(null);
+
+  // ============================================================
+  // Année académique active + trimestre actif (chargé depuis
+  // /api/academic-years). Le bulletin est strictement lié à
+  // l'année et au trimestre actif :
+  //   - T1 actif → bulletin du 1er trimestre uniquement
+  //   - T2 actif → bulletin du 2ᵉ trimestre uniquement
+  //   - T3 actif → bulletin annuel (compositions + décision)
+  // L'admin peut forcer manuellement un autre trimestre via le
+  // sélecteur si besoin (ex : ré-imprimer un T1 en juin).
+  // ============================================================
+  type Trimester = {
+    id: string;
+    name: string;
+    isActive: boolean;
+  };
+  type AcademicYear = {
+    id: string;
+    year: string;
+    isActive: boolean;
+    trimesters: Trimester[];
+  };
+  const [activeYear, setActiveYear] = useState<AcademicYear | null>(null);
+  /** Numéro du trimestre choisi (1, 2, 3). 3 = bulletin annuel. */
+  const [selectedTrimester, setSelectedTrimester] = useState<1 | 2 | 3>(1);
+  /** Échelle de la moyenne — 10 pour primaire (défaut), 20 pour collège. */
+  const [gradeScale, setGradeScale] = useState<10 | 20>(10);
+
+  // ============================================================
+  // État d'édition "Excel-like" du bulletin individuel.
+  // Toutes ces valeurs sont saisies localement par l'admin dans
+  // l'aperçu A4. Elles sont réinitialisées à chaque changement
+  // d'élève sélectionné. Persistance backend à venir (modèle
+  // ReportCardEntry Prisma).
+  // ============================================================
+  const [compositions, setCompositions] = useState<ReportCardCompositions>({});
+  const [decision, setDecision] = useState<ReportCardDecision | null>(null);
+  const [councilObservation, setCouncilObservation] =
+    useState<ReportCardCouncilObservation | null>(null);
+  const [generalAppreciation, setGeneralAppreciation] = useState('');
+  const [attendance, setAttendance] = useState<{
+    present?: number;
+    absent?: number;
+    late?: number;
+  }>({});
+  // Feedback de sauvegarde serveur (PUT /api/report-cards).
+  const [savedFlash, setSavedFlash] = useState<
+    null | { kind: 'ok'; at: string } | { kind: 'error'; message: string }
+  >(null);
+  const [saving, setSaving] = useState(false);
 
   // Load classes list
   useEffect(() => {
@@ -54,65 +129,135 @@ const AdminBulletins: React.FC = () => {
     loadClasses();
   }, []);
 
-  // Load single student bulletin
-  const loadStudentBulletin = async (studentProfileId: string, studentName?: string) => {
-    try {
-      setLoading(true);
-      setError('');
-      const res = await api.get(API.GRADES_BY_STUDENT(studentProfileId));
-      const result = res.data;
-      const courses = Array.isArray(result?.data?.courses) ? result.data.courses : [];
+  // Load academic years + détecte automatiquement le trimestre
+  // actif (`isActive: true`) pour pré-sélectionner le bon
+  // bulletin à générer.
+  useEffect(() => {
+    const loadAcademicYear = async () => {
+      try {
+        const res = await api.get(API.ACADEMIC_YEARS);
+        const payload = res.data;
+        const years: AcademicYear[] = Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+          ? payload
+          : [];
+        const active =
+          years.find((y) => y.isActive) || years[0] || null;
+        if (!active) return;
+        setActiveYear(active);
+        // Trie les trimestres par index pour avoir T1/T2/T3 dans
+        // l'ordre, puis trouve celui marqué actif.
+        const sorted = [...active.trimesters].sort((a, b) => {
+          const ai = parseInt(a.name.replace(/\D/g, ''), 10) || 0;
+          const bi = parseInt(b.name.replace(/\D/g, ''), 10) || 0;
+          return ai - bi;
+        });
+        const activeIndex = sorted.findIndex((t) => t.isActive);
+        if (activeIndex >= 0) {
+          setSelectedTrimester((activeIndex + 1) as 1 | 2 | 3);
+        }
+      } catch {
+        // silent — l'année académique reste optionnelle (on fall
+        // back sur "Trimestre en cours" si l'API n'est pas dispo).
+      }
+    };
+    loadAcademicYear();
+  }, []);
 
-      const grades: GradeRow[] = courses.map((course: any) => {
-        const assignments = Array.isArray(course.assignments) ? course.assignments : [];
-        let gradeValue = 0;
+  // ------------------------------------------------------------
+  // Charge le bulletin pour (élève, année, trimestre) :
+  //   1. fetch /api/grades/student/:id (notes brutes)
+  //   2. fetch /api/report-cards (overlay persisté par admin/prof)
+  //   3. merge → entries finales + champs admin pré-remplis
+  // Cette fonction est réutilisée à chaque changement d'élève OU
+  // de trimestre OU d'année — admin voit toujours la dernière
+  // version sauvegardée côté serveur.
+  // ------------------------------------------------------------
+  const loadStudentBulletinFor = useCallback(
+    async (
+      studentProfileId: string,
+      yearId: string,
+      trimester: 1 | 2 | 3,
+      studentName?: string,
+    ) => {
+      try {
+        setLoading(true);
+        setError('');
+        const merged = await fetchMergedBulletin({
+          studentId: studentProfileId,
+          yearId,
+          trimester,
+        });
 
-        if (course.finalGrade != null) {
-          gradeValue = Number(course.finalGrade);
-        } else if (assignments.length > 0) {
-          const totals = assignments.reduce((acc: { earned: number; possible: number }, assignment: any) => {
-            const earned = assignment.pointsEarned != null ? Number(assignment.pointsEarned) : 0;
-            const possible = assignment.pointsPossible != null ? Number(assignment.pointsPossible) : 0;
-            return { earned: acc.earned + earned, possible: acc.possible + possible };
-          }, { earned: 0, possible: 0 });
-          gradeValue = totals.possible > 0 ? (totals.earned / totals.possible) * 20 : 0;
+        // Pré-remplit les champs admin depuis la sauvegarde
+        // serveur (ou réinitialise si rien de persisté pour ce
+        // trimestre).
+        if (merged.saved) {
+          setCompositions(merged.saved.compositions || {});
+          setDecision(merged.saved.decision);
+          setCouncilObservation(merged.saved.councilObservation);
+          setGeneralAppreciation(merged.saved.generalAppreciation || '');
+          setAttendance(merged.saved.attendance || {});
+          if (merged.saved.gradeScale === 10 || merged.saved.gradeScale === 20) {
+            setGradeScale(merged.saved.gradeScale);
+          }
+        } else {
+          setCompositions({});
+          setDecision(null);
+          setCouncilObservation(null);
+          setGeneralAppreciation('');
+          setAttendance({});
         }
 
-        return {
-          course: course.courseName || 'Matière',
-          grade: Number(gradeValue.toFixed(1)),
-          coefficient: course.credits || 1,
-          teacher: course.teacher || '-'
+        // GradeRow[] pour le tableau de l'aperçu admin (toujours
+        // sur /20 — le scaling /10 est fait à l'affichage).
+        const grades: GradeRow[] = merged.entries.map((e) => ({
+          course: e.subject,
+          grade:
+            e.grade === null || Number.isNaN(e.grade as number)
+              ? 0
+              : Number((e.grade as number).toFixed(1)),
+          coefficient: e.coefficient || 1,
+          teacher: e.teacher || '-',
+        }));
+
+        const avg20 = computeAverage(merged.entries, 20);
+        const mention = deriveMention(avg20 ?? 0, 20);
+
+        const b: BulletinData = {
+          studentName: studentName || selectedStudentName || 'Élève',
+          studentId: studentProfileId,
+          className: merged.className,
+          period: merged.period.trimester
+            ? `${merged.period.trimester}${
+                merged.period.academicYear ? ` ${merged.period.academicYear}` : ''
+              }`.trim()
+            : 'Trimestre en cours',
+          gpa: avg20 === null ? 0 : Number(avg20.toFixed(2)),
+          mention,
+          grades,
+          a4Entries: merged.entries,
+          a4Period: merged.period,
         };
-      });
 
-      const weightedTotal = grades.reduce((sum, row) => sum + row.grade * row.coefficient, 0);
-      const coefSum = grades.reduce((sum, row) => sum + row.coefficient, 0);
-      const average = coefSum > 0 ? weightedTotal / coefSum : 0;
+        setBulletin(b);
+        return b;
+      } catch (err: any) {
+        setError(
+          err?.response?.data?.error ||
+            err.message ||
+            'Erreur lors du chargement du bulletin',
+        );
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedStudentName],
+  );
 
-      const mention = average >= 16 ? 'Très Bien' : average >= 14 ? 'Bien' : average >= 12 ? 'Assez Bien' : average >= 10 ? 'Passable' : 'Insuffisant';
-
-      const b: BulletinData = {
-        studentName: studentName || selectedStudentName || 'Élève',
-        studentId: studentProfileId,
-        className: result?.data?.className || '-',
-        period: result?.data?.semester ? `${result.data.semester} ${result.data.year || ''}`.trim() : 'Semestre en cours',
-        gpa: Number(average.toFixed(2)),
-        mention,
-        grades
-      };
-
-      setBulletin(b);
-      return b;
-    } catch (err: any) {
-      setError(err?.response?.data?.error || err.message || 'Erreur lors du chargement du bulletin');
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle student selection
+  // Handle student selection — déclenche le chargement initial.
   const handleStudentChange = (id: string, user?: any) => {
     setSelectedStudentId(id);
     if (user) {
@@ -120,10 +265,24 @@ const AdminBulletins: React.FC = () => {
       setSelectedStudentName(name);
     }
     setBulletin(null);
-    if (id) {
-      loadStudentBulletin(id, user ? [user.firstName, user.lastName].filter(Boolean).join(' ').trim() : undefined);
-    }
+    setSavedFlash(null);
+    // Le chargement effectif est déclenché par le useEffect ci-dessous
+    // qui dépend de (studentId, yearId, trimester).
   };
+
+  // Reload à chaque changement d'élève, année ou trimestre.
+  useEffect(() => {
+    if (!selectedStudentId || !activeYear?.id) return;
+    loadStudentBulletinFor(
+      selectedStudentId,
+      activeYear.id,
+      selectedTrimester,
+      selectedStudentName,
+    );
+    // Note: deliberately NOT depending on selectedStudentName so
+    // a name update mid-load doesn't trigger a refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStudentId, activeYear?.id, selectedTrimester]);
 
   // Generate bulletins for all students in a class
   const handleGenerateClassBulletins = async () => {
@@ -146,8 +305,6 @@ const AdminBulletins: React.FC = () => {
           name: [u.firstName, u.lastName].filter(Boolean).join(' ').trim(),
           studentId: u.student.id
         }));
-
-      setClassStudents(studentsInClass);
 
       if (studentsInClass.length === 0) {
         setError(`Aucun élève trouvé dans la classe "${className}".`);
@@ -191,10 +348,12 @@ const AdminBulletins: React.FC = () => {
             studentName: student.name,
             studentId: student.studentId,
             className,
-            period: result?.data?.semester ? `${result.data.semester} ${result.data.year || ''}`.trim() : 'Semestre en cours',
+            period: result?.data?.semester ? `${result.data.semester} ${result.data.year || ''}`.trim() : 'Trimestre en cours',
             gpa: Number(avg.toFixed(2)),
             mention,
-            grades
+            grades,
+            a4Entries: mapGradesToEntries(result),
+            a4Period: extractPeriod(result, result?.data?.semester || 'Trimestre en cours'),
           });
         } catch {
           // skip students with no grades
@@ -219,11 +378,287 @@ const AdminBulletins: React.FC = () => {
     }
   };
 
+  // ============================================================
+  // Trimestres réellement disponibles = trimestres de l'année
+  // active marqués `isActive: true` dans /admin/years. Un
+  // trimestre absent de cette liste n'est PAS proposé dans le
+  // sélecteur ni utilisable pour générer un bulletin.
+  //
+  // On trie par numéro (1,2,3) extrait du nom du trimestre pour
+  // que l'ordre reste stable même si l'admin les a créés dans
+  // un ordre différent.
+  // ============================================================
+  const availableTrimesters = useMemo<(1 | 2 | 3)[]>(() => {
+    if (!activeYear?.trimesters) return [];
+    const sorted = [...activeYear.trimesters].sort((a, b) => {
+      const ai = parseInt(a.name.replace(/\D/g, ''), 10) || 0;
+      const bi = parseInt(b.name.replace(/\D/g, ''), 10) || 0;
+      return ai - bi;
+    });
+    const result: (1 | 2 | 3)[] = [];
+    sorted.forEach((t, idx) => {
+      if (t.isActive && idx < 3) result.push((idx + 1) as 1 | 2 | 3);
+    });
+    return result;
+  }, [activeYear]);
+
+  // Si le trimestre actuellement sélectionné n'est plus actif
+  // (par ex. l'admin vient de désactiver T1 dans /admin/years),
+  // on se rabat automatiquement sur le premier trimestre actif.
+  useEffect(() => {
+    if (availableTrimesters.length === 0) return;
+    if (!availableTrimesters.includes(selectedTrimester)) {
+      setSelectedTrimester(availableTrimesters[0]);
+    }
+  }, [availableTrimesters, selectedTrimester]);
+
+  // ============================================================
+  // Période effective passée au composant A4 — calculée à partir
+  // du trimestre sélectionné + année active. C'est elle qui
+  // détermine le titre du bulletin ("Bulletin de Notes — 1er
+  // Trimestre", etc.) et l'affichage des sections annuelles.
+  // ============================================================
+  const trimesterLabel = useMemo(() => {
+    if (selectedTrimester === 1) return '1er Trimestre';
+    if (selectedTrimester === 2) return '2ème Trimestre';
+    return '3ème Trimestre — Bilan Annuel';
+  }, [selectedTrimester]);
+
+  const isAnnualBulletin = selectedTrimester === 3;
+  /** True ⇔ au moins un trimestre est actif dans /admin/years. */
+  const hasActiveTrimester = availableTrimesters.length > 0;
+
+  // ------------------------------------------------------------
+  // Les GPA stockés dans `bulletin.gpa` / `grades[].grade` sont
+  // toujours calculés sur /20 (cf. loadStudentBulletin). Quand
+  // l'admin choisit le barème "/10 (Primaire)", il faut les
+  // ramener à l'échelle avant affichage dans les cartes résumé.
+  // ------------------------------------------------------------
+  const scaleValue = (value: number) =>
+    gradeScale === 10 ? value / 2 : value;
+
+  const overriddenPeriod = useMemo(
+    () => ({
+      trimester: trimesterLabel,
+      academicYear: activeYear?.year || bulletin?.a4Period.academicYear,
+    }),
+    [trimesterLabel, activeYear?.year, bulletin?.a4Period.academicYear],
+  );
+
+  // ------------------------------------------------------------
+  // Résumé "live" (Moyenne générale / Mention / Matières) calculé
+  // directement depuis `bulletin.a4Entries` pour rester en sync
+  // avec ce que l'admin saisit dans l'aperçu A4 — la cellule du
+  // bulletin et la carte récapitulative affichent toujours la
+  // même chose, c'est ce que l'élève / parent / prof verront aussi
+  // dès que l'admin a enregistré.
+  // ------------------------------------------------------------
+  const liveSummary = useMemo(() => {
+    if (!bulletin) {
+      return { gpaOnScale: 0, mention: 'Insuffisant', matieresCount: 0 };
+    }
+    const avg20 = computeAverage(bulletin.a4Entries, 20);
+    const onScale = computeAverage(bulletin.a4Entries, gradeScale);
+    return {
+      gpaOnScale: onScale === null ? 0 : Number(onScale.toFixed(2)),
+      mention: deriveMention(avg20 ?? 0, 20),
+      matieresCount: bulletin.a4Entries.length,
+    };
+  }, [bulletin, gradeScale]);
+
+  // ------------------------------------------------------------
+  // Sauvegarde serveur (PUT /api/report-cards). Envoie l'état
+  // courant (entries éditées + tous les champs admin) vers le
+  // backend, puis recharge le bulletin pour caler le state local
+  // sur la version canonique renvoyée par l'API.
+  // ------------------------------------------------------------
+  const handleAdminSave = async () => {
+    if (!bulletin || !activeYear?.id || saving) return;
+    setSaving(true);
+    setSavedFlash(null);
+    try {
+      const saved = await saveReportCard({
+        studentId: bulletin.studentId,
+        yearId: activeYear.id,
+        trimester: selectedTrimester,
+        gradeScale,
+        entries: bulletin.a4Entries,
+        generalAppreciation,
+        compositions,
+        decision,
+        councilObservation,
+        attendance,
+      });
+      setSavedFlash({
+        kind: 'ok',
+        at: saved?.updatedAt || new Date().toISOString(),
+      });
+      window.setTimeout(() => setSavedFlash(null), 2400);
+    } catch (err: any) {
+      setSavedFlash({
+        kind: 'error',
+        message:
+          err?.response?.data?.error ||
+          err?.message ||
+          "Échec de l'enregistrement",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Impression individuelle : on active le host "single", on laisse
+  // React committer puis on lance le dialog d'impression du navigateur.
+  const handlePrintSingle = () => {
+    if (!bulletin) return;
+    setPrintScope('single');
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => setPrintScope(null), 120);
+    }, 60);
+  };
+
+  // Impression batch : tous les bulletins de la classe sur des pages
+  // séparées. Le `page-break-after: always` du CSS s'occupe de la
+  // pagination ; le navigateur envoie N pages à l'imprimante.
+  const handlePrintBatch = () => {
+    if (classBulletins.length === 0) return;
+    setPrintScope('batch');
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => setPrintScope(null), 120);
+    }, 150);
+  };
+
   return (
-    <div className="section">
-      <div className="section-content">
-        <div className="space-y-6">
-          {/* Header */}
+    <>
+      {/* ============================================================
+          HOSTS D'IMPRESSION A4 — un par mode. Seul le host actif est
+          ajouté au DOM au moment du print, pour ne pas imprimer à la
+          fois single + batch. Pour l'aperçu A4 à l'écran, on garde le
+          host individuel monté en permanence (visible/caché via
+          data-screen-hidden) afin que le toggle soit instantané.
+          ============================================================ */}
+      {bulletin && (showA4Preview || printScope === 'single') && (
+        <div className="rc-print-host" data-screen-hidden={!showA4Preview}>
+          <ReportCardA4
+            school={{
+              name: branding.brand.name,
+              address: branding.brand.address,
+              phone: branding.brand.phone,
+              email: branding.brand.email,
+              principal: branding.brand.principal,
+              logoUrl: branding.brand.logoUrl,
+              year: branding.brand.year,
+            }}
+            student={{
+              fullName: bulletin.studentName,
+              className: bulletin.className,
+            }}
+            period={overriddenPeriod}
+            entries={bulletin.a4Entries}
+            gradeScale={gradeScale}
+            isAnnual={isAnnualBulletin}
+            // ----------------------------------------------
+            // Mode édition inline (admin uniquement). Les
+            // callbacks remontent les changements de cellules
+            // dans le state local du composant parent.
+            // ----------------------------------------------
+            editable={showA4Preview}
+            onEntriesChange={(next) =>
+              setBulletin((prev) => (prev ? { ...prev, a4Entries: next } : prev))
+            }
+            compositions={compositions}
+            onCompositionsChange={setCompositions}
+            decision={decision}
+            onDecisionChange={setDecision}
+            councilObservation={councilObservation}
+            onCouncilObservationChange={setCouncilObservation}
+            generalAppreciation={generalAppreciation}
+            onGeneralAppreciationChange={setGeneralAppreciation}
+            attendance={attendance}
+            onAttendanceChange={setAttendance}
+          />
+        </div>
+      )}
+
+      {printScope === 'batch' && classBulletins.length > 0 && (
+        <div className="rc-print-host" data-screen-hidden={true}>
+          {classBulletins.map((b) => (
+            <ReportCardA4
+              key={b.studentId}
+              school={{
+                name: branding.brand.name,
+                address: branding.brand.address,
+                phone: branding.brand.phone,
+                email: branding.brand.email,
+                principal: branding.brand.principal,
+                logoUrl: branding.brand.logoUrl,
+                year: branding.brand.year,
+              }}
+              student={{
+                fullName: b.studentName,
+                className: b.className,
+              }}
+              period={{
+                trimester: trimesterLabel,
+                academicYear: activeYear?.year || b.a4Period.academicYear,
+              }}
+              entries={b.a4Entries}
+              gradeScale={gradeScale}
+              isAnnual={isAnnualBulletin}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Barre d'actions flottante en mode Aperçu A4 immersif.
+          En mode admin, on propose aussi un bouton "Enregistrer"
+          qui flash le feedback local tant que le backend n'est
+          pas branché. */}
+      {showA4Preview && bulletin && (
+        <div className="rc-preview-actions fixed top-4 right-4 z-50 flex items-center gap-2 print:hidden">
+          {savedFlash?.kind === 'ok' && (
+            <span className="px-3 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium shadow-sm animate-pulse">
+              ✓ Enregistré sur le serveur
+            </span>
+          )}
+          {savedFlash?.kind === 'error' && (
+            <span className="px-3 py-1 rounded-full bg-red-100 text-red-800 text-xs font-medium shadow-sm">
+              {savedFlash.message}
+            </span>
+          )}
+          <button
+            onClick={() => setShowA4Preview(false)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-[var(--color-border)] text-[var(--color-text-primary)] shadow-md hover:bg-[var(--color-bg-secondary)] transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Retour
+          </button>
+          <button
+            onClick={handleAdminSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary-gold)] text-[var(--color-primary-navy)] font-semibold shadow-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+            title="Sauvegarder le bulletin sur le serveur"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+          <button
+            onClick={handlePrintSingle}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary-navy)] text-white shadow-md hover:opacity-90 transition-opacity"
+          >
+            <Printer className="w-4 h-4" />
+            Imprimer
+          </button>
+        </div>
+      )}
+
+      {!showA4Preview && (
+        <div className="section">
+          <div className="section-content">
+            <div className="space-y-6">
+              {/* Header */}
           <div className="mb-6">
             <button
               onClick={() => navigate('/admin', { state: { scrollTo: 'bulletins' } })}
@@ -232,11 +667,81 @@ const AdminBulletins: React.FC = () => {
               <ChevronLeft className="w-4 h-4" />
               Retour
             </button>
-            <div className="flex items-center gap-3">
-              <FileText className="w-8 h-8 text-primary-navy" />
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Bulletins Semestriels</h1>
-                <p className="text-gray-600 dark:text-gray-400">Générer et consulter les bulletins de notes des élèves</p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <FileText className="w-8 h-8 text-primary-navy" />
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                    Bulletins Trimestriels
+                  </h1>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Générer et consulter les bulletins de notes des élèves
+                    {activeYear ? ` — Année ${activeYear.year}` : ''}
+                  </p>
+                </div>
+              </div>
+
+              {/* ============================================================
+                  Sélecteurs : trimestre actif + barème de la moyenne.
+                  Le trimestre est pré-sélectionné depuis l'année active
+                  (champ `isActive` du modèle Trimester) et peut être
+                  changé manuellement par l'admin.
+                  ============================================================ */}
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                    Trimestre
+                  </label>
+                  {hasActiveTrimester ? (
+                    <select
+                      value={selectedTrimester}
+                      onChange={(e) =>
+                        setSelectedTrimester(
+                          Number(e.target.value) as 1 | 2 | 3,
+                        )
+                      }
+                      className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white dark:bg-gray-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-navy)]"
+                    >
+                      {availableTrimesters.map((n) => {
+                        const baseLabel =
+                          n === 1
+                            ? '1er Trimestre'
+                            : n === 2
+                            ? '2ème Trimestre'
+                            : '3ème Trimestre — Bilan annuel';
+                        return (
+                          <option key={n} value={n}>
+                            {baseLabel}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/admin/years')}
+                      className="px-3 py-2 rounded-lg border border-amber-400 bg-amber-50 text-amber-800 text-sm font-medium hover:bg-amber-100 transition-colors"
+                      title="Aucun trimestre actif dans l'année courante"
+                    >
+                      Aucun trimestre actif — configurer
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                    Barème moyenne
+                  </label>
+                  <select
+                    value={gradeScale}
+                    onChange={(e) =>
+                      setGradeScale(Number(e.target.value) as 10 | 20)
+                    }
+                    className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white dark:bg-gray-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-navy)]"
+                  >
+                    <option value={10}>/10 (Primaire)</option>
+                    <option value={20}>/20 (Collège / Lycée)</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -248,8 +753,43 @@ const AdminBulletins: React.FC = () => {
             </div>
           )}
 
-          {/* Individual Student Bulletin */}
-          <Card className="p-6">
+          {/* Bandeau : aucun trimestre actif → génération bloquée.
+              L'admin est redirigé vers /admin/years pour cocher au
+              moins un trimestre comme actif. */}
+          {!hasActiveTrimester && (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-amber-900 font-semibold">
+                  Aucun trimestre actif
+                </p>
+                <p className="text-amber-800 text-sm mt-1">
+                  Pour générer un bulletin, activez au moins un trimestre
+                  de l'année courante dans{' '}
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/years')}
+                    className="underline font-medium hover:text-amber-900"
+                  >
+                    Années &amp; Trimestres
+                  </button>
+                  .
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Individual Student Bulletin — désactivé tant qu'aucun
+              trimestre n'est actif dans /admin/years. */}
+          <Card
+            className={
+              'p-6' +
+              (hasActiveTrimester
+                ? ''
+                : ' opacity-50 pointer-events-none select-none')
+            }
+            aria-disabled={!hasActiveTrimester}
+          >
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
               <Search className="w-5 h-5 text-primary-navy" />
               Bulletin individuel
@@ -283,26 +823,42 @@ const AdminBulletins: React.FC = () => {
               <div className="mt-6 space-y-4">
                 {/* Student header */}
                 <div className="bg-gradient-to-r from-[var(--color-primary-navy)] to-[var(--color-primary-navy)]/80 rounded-xl p-6 text-white">
-                  <div className="flex justify-between items-start">
+                  <div className="flex justify-between items-start gap-4 flex-wrap">
                     <div>
                       <h3 className="text-xl font-bold">{bulletin.studentName}</h3>
                       <p className="text-white/80 text-sm">Classe : {bulletin.className} — {bulletin.period}</p>
                     </div>
-                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${getMentionColor(bulletin.mention)}`}>
-                      {bulletin.mention}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${getMentionColor(liveSummary.mention)}`}>
+                        {liveSummary.mention}
+                      </span>
+                      <button
+                        onClick={() => setShowA4Preview(true)}
+                        className="flex items-center gap-1.5 px-3 py-1 bg-white text-[var(--color-primary-navy)] font-semibold rounded-lg hover:bg-white/90 text-xs transition-colors shadow-sm"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Aperçu A4
+                      </button>
+                      <button
+                        onClick={handlePrintSingle}
+                        className="flex items-center gap-1.5 px-3 py-1 bg-white text-[var(--color-primary-navy)] font-semibold rounded-lg hover:bg-white/90 text-xs transition-colors shadow-sm"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        Imprimer
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{bulletin.gpa.toFixed(2)}/20</p>
+                      <p className="text-2xl font-bold">{liveSummary.gpaOnScale.toFixed(2)}/{gradeScale}</p>
                       <p className="text-xs text-white/70">Moyenne générale</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{bulletin.grades.length}</p>
+                      <p className="text-2xl font-bold">{liveSummary.matieresCount}</p>
                       <p className="text-xs text-white/70">Matières</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{bulletin.mention}</p>
+                      <p className="text-2xl font-bold">{liveSummary.mention}</p>
                       <p className="text-xs text-white/70">Mention</p>
                     </div>
                   </div>
@@ -326,7 +882,7 @@ const AdminBulletins: React.FC = () => {
                           <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                             <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{g.course}</td>
                             <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{g.teacher}</td>
-                            <td className="px-4 py-3 font-semibold text-primary-navy">{g.grade}/20</td>
+                            <td className="px-4 py-3 font-semibold text-primary-navy">{scaleValue(g.grade).toFixed(gradeScale === 10 ? 2 : 1)}/{gradeScale}</td>
                             <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{g.coefficient}</td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -350,8 +906,17 @@ const AdminBulletins: React.FC = () => {
             )}
           </Card>
 
-          {/* Batch Generation by Class */}
-          <Card className="p-6">
+          {/* Batch Generation by Class — également désactivée sans
+              trimestre actif. */}
+          <Card
+            className={
+              'p-6' +
+              (hasActiveTrimester
+                ? ''
+                : ' opacity-50 pointer-events-none select-none')
+            }
+            aria-disabled={!hasActiveTrimester}
+          >
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-primary-navy" />
               Bulletins par classe
@@ -394,13 +959,23 @@ const AdminBulletins: React.FC = () => {
 
             {classBulletins.length > 0 && (
               <div className="mt-6">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                     {classBulletins.length} bulletin{classBulletins.length > 1 ? 's' : ''} générés
                   </h3>
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <TrendingUp className="w-4 h-4" />
-                    Moyenne de classe : {(classBulletins.reduce((s, b) => s + b.gpa, 0) / classBulletins.length).toFixed(2)}/20
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <TrendingUp className="w-4 h-4" />
+                      Moyenne de classe : {scaleValue(classBulletins.reduce((s, b) => s + b.gpa, 0) / classBulletins.length).toFixed(2)}/{gradeScale}
+                    </div>
+                    <button
+                      onClick={handlePrintBatch}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary-navy)] text-white text-sm shadow-sm hover:opacity-90 transition-opacity"
+                      title="Imprimer tous les bulletins de cette classe"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Imprimer tous
+                    </button>
                   </div>
                 </div>
                 <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
@@ -420,7 +995,7 @@ const AdminBulletins: React.FC = () => {
                         <tr key={b.studentId} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                           <td className="px-4 py-3 font-semibold text-gray-900 dark:text-gray-100">{i + 1}</td>
                           <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{b.studentName}</td>
-                          <td className="px-4 py-3 font-semibold text-primary-navy">{b.gpa.toFixed(2)}/20</td>
+                          <td className="px-4 py-3 font-semibold text-primary-navy">{scaleValue(b.gpa).toFixed(2)}/{gradeScale}</td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${getMentionColor(b.mention)}`}>
                               {b.mention}
@@ -449,9 +1024,11 @@ const AdminBulletins: React.FC = () => {
               </div>
             )}
           </Card>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </>
   );
 };
 

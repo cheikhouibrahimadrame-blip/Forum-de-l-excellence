@@ -19,6 +19,44 @@ export const livingIconMap: { [key: string]: React.ComponentType<any> } = {
   Sparkles, Lightbulb, Trophy, Compass,
 };
 
+// ─────────────────────────────────────────────────────────────
+// External link detection — anything that should open in the
+// browser via a real <a> tag instead of React Router's <Link>.
+// Covers http(s), tel:, mailto:, sms: and the WhatsApp click-to-chat
+// schemes (wa.me, api.whatsapp.com, whatsapp:).
+// ─────────────────────────────────────────────────────────────
+export const isExternalLink = (url: string | undefined | null): boolean => {
+  if (!url) return false;
+  return /^(https?:|tel:|mailto:|sms:|whatsapp:)/i.test(url) || /^https?:\/\/(wa\.me|api\.whatsapp\.com)/i.test(url);
+};
+
+const ExternalOrInternalLink: React.FC<{
+  to: string;
+  className?: string;
+  style?: React.CSSProperties;
+  children: ReactNode;
+}> = ({ to, className, style, children }) => {
+  if (isExternalLink(to)) {
+    const opensInNewTab = /^https?:/i.test(to);
+    return (
+      <a
+        href={to}
+        className={className}
+        style={style}
+        target={opensInNewTab ? '_blank' : undefined}
+        rel={opensInNewTab ? 'noopener noreferrer' : undefined}
+      >
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link to={to} className={className} style={style}>
+      {children}
+    </Link>
+  );
+};
+
 export const featureAccents = [
   { tint: 'var(--oak-olive)', bg: 'color-mix(in oklch, var(--oak-olive) 14%, white)', ring: 'color-mix(in oklch, var(--oak-olive) 22%, transparent)' },
   { tint: '#b8860c',          bg: 'color-mix(in oklch, var(--oak-peach) 65%, white)',  ring: 'color-mix(in oklch, var(--oak-gold, #ddb957) 26%, transparent)' },
@@ -479,7 +517,7 @@ export const LivingHero: React.FC<LivingHeroProps> = ({
             {(primary || secondary) && (
               <div className="flex flex-col sm:flex-row gap-3 oak-parallax-soft">
                 {primary && (
-                  <Link
+                  <ExternalOrInternalLink
                     to={primary.to}
                     className="oak-shine inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl font-semibold text-base"
                     style={{
@@ -491,16 +529,16 @@ export const LivingHero: React.FC<LivingHeroProps> = ({
                     {primary.icon ?? <Calendar className="w-5 h-5" />}
                     {primary.label}
                     <ArrowRight className="w-4 h-4" />
-                  </Link>
+                  </ExternalOrInternalLink>
                 )}
                 {secondary && (
-                  <Link
+                  <ExternalOrInternalLink
                     to={secondary.to}
                     className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl font-semibold text-base oak-glass text-white"
                   >
                     {secondary.icon ?? <PlayCircle className="w-5 h-5" />}
                     {secondary.label}
-                  </Link>
+                  </ExternalOrInternalLink>
                 )}
               </div>
             )}
@@ -595,7 +633,7 @@ export const LivingCTA: React.FC<{
 
         <Reveal delay={3}>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
+            <ExternalOrInternalLink
               to={primary.to}
               className="oak-shine inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-bold text-base"
               style={{
@@ -607,28 +645,17 @@ export const LivingCTA: React.FC<{
               {primary.icon ?? <Calendar className="w-5 h-5" />}
               {primary.label}
               <ArrowRight className="w-4 h-4" />
-            </Link>
+            </ExternalOrInternalLink>
 
             {secondary && (
-              secondary.href ? (
-                <a
-                  href={secondary.href}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-bold text-base bg-white/80 hover:bg-white border-2 transition-colors"
-                  style={{ borderColor: 'var(--oak-olive)', color: 'var(--oak-dark)' }}
-                >
-                  {secondary.icon}
-                  {secondary.label}
-                </a>
-              ) : (
-                <Link
-                  to={secondary.to}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-bold text-base bg-white/80 hover:bg-white border-2 transition-colors"
-                  style={{ borderColor: 'var(--oak-olive)', color: 'var(--oak-dark)' }}
-                >
-                  {secondary.icon}
-                  {secondary.label}
-                </Link>
-              )
+              <ExternalOrInternalLink
+                to={secondary.href || secondary.to}
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-bold text-base bg-white/80 hover:bg-white border-2 transition-colors"
+                style={{ borderColor: 'var(--oak-olive)', color: 'var(--oak-dark)' }}
+              >
+                {secondary.icon}
+                {secondary.label}
+              </ExternalOrInternalLink>
             )}
           </div>
         </Reveal>

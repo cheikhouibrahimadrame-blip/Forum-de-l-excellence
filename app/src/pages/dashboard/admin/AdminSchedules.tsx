@@ -8,6 +8,15 @@ import { API } from '../../../lib/apiRoutes';
 interface ClassItem {
   id: string;
   name: string;
+  mainTeacherId?: string;
+  mainTeacher?: string;
+}
+
+interface SubjectItem {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
 }
 
 interface ScheduleRequest {
@@ -24,15 +33,31 @@ interface ScheduleRequest {
   rejectionReason?: string;
 }
 
+const currentYear = new Date().getFullYear();
+
+const emptyScheduleForm = {
+  classId: '',
+  subjectId: '',
+  classroom: '',
+  dayOfWeek: '1',
+  startTime: '08:00',
+  endTime: '09:00',
+  semester: 'S1',
+  year: String(currentYear)
+};
+
 const AdminSchedules: React.FC = () => {
   const navigate = useNavigate();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [scheduleData, setScheduleData] = useState({ className: '', startDate: '', endDate: '' });
+  const [scheduleForm, setScheduleForm] = useState(emptyScheduleForm);
   const [summary, setSummary] = useState({ published: 0, classesCovered: 0, pending: 0 });
   const [classes, setClasses] = useState<ClassItem[]>([]);
+  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [requests, setRequests] = useState<ScheduleRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const fetchSummary = async () => {
     try {
@@ -48,12 +73,100 @@ const AdminSchedules: React.FC = () => {
     try {
       const response = await api.get(API.CLASSES);
       const data = response.data;
-      const payload = Array.isArray(data) ? data : data.data || [];
-      setClasses(payload);
+      const payload: any[] = Array.isArray(data) ? data : data.data || [];
+      setClasses(
+        payload.map((c: any) => ({
+          id: String(c.id || ''),
+          name: String(c.name || ''),
+          mainTeacherId: c.mainTeacherId || undefined,
+          mainTeacher: c.mainTeacher || ''
+        })).filter((c) => c.id && c.name)
+      );
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erreur lors du chargement des classes');
     }
   };
+
+  const fetchSubjects = async () => {
+    try {
+      const response = await api.get(API.SUBJECTS);
+      const data = response.data;
+      const payload: any[] = Array.isArray(data) ? data : data.data || [];
+      setSubjects(
+        payload
+          .map((s: any) => ({
+            id: String(s.id || ''),
+            code: String(s.code || ''),
+            name: String(s.name || ''),
+            isActive: s.isActive !== false
+          }))
+          .filter((s) => s.id && s.isActive)
+      );
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Erreur lors du chargement des matières');
+    }
+  };
+
+  const createSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    const klass = classes.find((c) => c.id === scheduleForm.classId);
+    if (!klass) {
+      setError('Veuillez sélectionner une classe.');
+      return;
+    }
+    const subject = subjects.find((s) => s.id === scheduleForm.subjectId);
+    if (!subject) {
+      setError('Veuillez sélectionner une matière.');
+      return;
+    }
+    if (!klass.mainTeacherId) {
+      setError("Cette classe n'a pas d'enseignant principal. Assignez-en un dans la page Classes avant de créer un horaire.");
+      return;
+    }
+    if (!scheduleForm.classroom.trim()) {
+      setError('Veuillez indiquer la salle.');
+      return;
+    }
+    if (scheduleForm.startTime >= scheduleForm.endTime) {
+      setError("L'heure de fin doit être postérieure à l'heure de début.");
+      return;
+    }
+
+    const payload = {
+      classId: klass.id,
+      subjectId: subject.id,
+      classroom: scheduleForm.classroom.trim(),
+      dayOfWeek: Number(scheduleForm.dayOfWeek),
+      startTime: scheduleForm.startTime,
+      endTime: scheduleForm.endTime,
+      semester: scheduleForm.semester,
+      year: Number(scheduleForm.year)
+    };
+
+    try {
+      setCreating(true);
+      await api.post(API.SCHEDULES, payload);
+      await Promise.all([fetchSummary(), fetchRequests()]);
+      setSuccess(`Horaire créé pour ${klass.name} — ${subject.name}.`);
+      setScheduleForm(emptyScheduleForm);
+      setShowCreateModal(false);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.error ||
+          err?.response?.data?.errors?.[0]?.msg ||
+          err?.message ||
+          "Erreur lors de la création de l'horaire"
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const selectedClass = classes.find((c) => c.id === scheduleForm.classId);
 
   const fetchRequests = async () => {
     try {
@@ -89,7 +202,7 @@ const AdminSchedules: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     setError('');
-    Promise.all([fetchSummary(), fetchClasses(), fetchRequests()]).finally(() => setLoading(false));
+    Promise.all([fetchSummary(), fetchClasses(), fetchSubjects(), fetchRequests()]).finally(() => setLoading(false));
   }, []);
 
   const dayNames: Record<number, string> = {
@@ -145,50 +258,194 @@ const AdminSchedules: React.FC = () => {
             </div>
           )}
 
+          {success && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+              {success}
+            </div>
+          )}
+
           {/* Create Modal */}
           {showCreateModal && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="card p-6 w-full max-w-md">
+              <div className="card p-6 w-full max-w-lg">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold text-[var(--color-text-primary)]">Créer un nouvel horaire</h2>
-                  <button onClick={() => setShowCreateModal(false)} className="p-1 text-[var(--color-text-muted)]">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="p-1 text-[var(--color-text-muted)]"
+                    aria-label="Fermer"
+                  >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="space-y-4">
+                <form onSubmit={createSchedule} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Classe</label>
-                    <select 
-                      value={scheduleData.className} 
-                      onChange={(e) => setScheduleData({...scheduleData, className: e.target.value})}
+                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                      Classe *
+                    </label>
+                    <select
+                      value={scheduleForm.classId}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, classId: e.target.value })}
                       className="input-field w-full"
+                      required
                     >
                       <option value="">Sélectionner une classe</option>
-                      {classes.map(cls => (
-                        <option key={cls.id} value={cls.name}>{cls.name}</option>
+                      {classes.map((klass) => (
+                        <option key={klass.id} value={klass.id}>
+                          {klass.name}
+                          {klass.mainTeacher ? ` — ${klass.mainTeacher}` : ' (sans enseignant principal)'}
+                        </option>
                       ))}
                     </select>
+                    {classes.length === 0 && (
+                      <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                        Aucune classe disponible. Créez une classe d'abord.
+                      </p>
+                    )}
                   </div>
+
                   <div>
-                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Date début</label>
-                    <input 
-                      type="date" 
-                      value={scheduleData.startDate} 
-                      onChange={(e) => setScheduleData({...scheduleData, startDate: e.target.value})}
+                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                      Matière *
+                    </label>
+                    <select
+                      value={scheduleForm.subjectId}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, subjectId: e.target.value })}
                       className="input-field w-full"
-                    />
+                      required
+                    >
+                      <option value="">Sélectionner une matière</option>
+                      {subjects.map((subject) => (
+                        <option key={subject.id} value={subject.id}>
+                          {subject.code} — {subject.name}
+                        </option>
+                      ))}
+                    </select>
+                    {subjects.length === 0 && (
+                      <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                        Aucune matière disponible. Créez une matière depuis « Gestion des matières ».
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Date fin</label>
-                    <input 
-                      type="date" 
-                      value={scheduleData.endDate} 
-                      onChange={(e) => setScheduleData({...scheduleData, endDate: e.target.value})}
-                      className="input-field w-full"
-                    />
+
+                  {selectedClass && (
+                    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm">
+                      <span className="text-[var(--color-text-secondary)]">Enseignant principal : </span>
+                      <span className="font-medium text-[var(--color-text-primary)]">
+                        {selectedClass.mainTeacher || 'aucun'}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                        Salle *
+                      </label>
+                      <input
+                        type="text"
+                        value={scheduleForm.classroom}
+                        onChange={(e) => setScheduleForm({ ...scheduleForm, classroom: e.target.value })}
+                        placeholder="Ex : Salle 12"
+                        className="input-field w-full"
+                        maxLength={50}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                        Jour *
+                      </label>
+                      <select
+                        value={scheduleForm.dayOfWeek}
+                        onChange={(e) => setScheduleForm({ ...scheduleForm, dayOfWeek: e.target.value })}
+                        className="input-field w-full"
+                        required
+                      >
+                        {Object.entries(dayNames).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <button onClick={() => {alert(`Horaire créé pour ${scheduleData.className}`); setShowCreateModal(false);}} className="w-full btn-primary">Créer</button>
-                </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                        Heure début *
+                      </label>
+                      <input
+                        type="time"
+                        value={scheduleForm.startTime}
+                        onChange={(e) => setScheduleForm({ ...scheduleForm, startTime: e.target.value })}
+                        className="input-field w-full"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                        Heure fin *
+                      </label>
+                      <input
+                        type="time"
+                        value={scheduleForm.endTime}
+                        onChange={(e) => setScheduleForm({ ...scheduleForm, endTime: e.target.value })}
+                        className="input-field w-full"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                        Semestre *
+                      </label>
+                      <select
+                        value={scheduleForm.semester}
+                        onChange={(e) => setScheduleForm({ ...scheduleForm, semester: e.target.value })}
+                        className="input-field w-full"
+                        required
+                      >
+                        <option value="S1">Semestre 1</option>
+                        <option value="S2">Semestre 2</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                        Année *
+                      </label>
+                      <input
+                        type="number"
+                        min={2020}
+                        max={2100}
+                        value={scheduleForm.year}
+                        onChange={(e) => setScheduleForm({ ...scheduleForm, year: e.target.value })}
+                        className="input-field w-full"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateModal(false)}
+                      className="flex-1 btn-secondary"
+                      disabled={creating}
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 btn-primary disabled:opacity-60"
+                      disabled={creating}
+                    >
+                      {creating ? 'Création...' : 'Créer'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}

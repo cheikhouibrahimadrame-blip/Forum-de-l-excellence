@@ -27,6 +27,9 @@ export const API = {
   SUBJECT_ASSIGN: (id: string) => `/api/subjects/${id}/assign`,
   SUBJECTS_TEACHER_ASSIGNMENTS: '/api/subjects/teacher/assignments',
 
+  // Courses (used by the admin schedule creation form)
+  COURSES: '/api/courses',
+
   // Classes
   CLASSES: '/api/classes',
   CLASS: (id: string) => `/api/classes/${id}`,
@@ -132,4 +135,7 @@ export const API = {
 
   // Admin Security
   ADMIN_SECURITY: '/api/admin/security',
+
+  // Report Cards (persisted bulletin drafts)
+  REPORT_CARDS: '/api/report-cards',
 } as const;

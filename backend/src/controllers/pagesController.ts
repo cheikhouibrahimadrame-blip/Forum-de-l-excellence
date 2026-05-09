@@ -23,7 +23,7 @@ const defaultPagesContent: any = {
       title: "Nos Programmes pédagogiques",
       subtitle: "Découvrez nos cursus de la maternelle au CM2, conçus pour révéler le potentiel de chaque enfant.",
       primaryButtonText: "Explorer les programmes", primaryButtonLink: "#filters",
-      secondaryButtonText: "Nous contacter", secondaryButtonLink: "/admissions#contact",
+      secondaryButtonText: "Nous contacter", secondaryButtonLink: "https://wa.me/221775368254",
       videoSrc: "/excz.mp4", posterSrc: "/programs-hero.jpg",
       trustItems: [
         { id: 'pp-trust-1', icon: 'MapPin', label: "Médinatoul Salam · Mbour" },
@@ -269,7 +269,7 @@ const defaultPagesContent: any = {
       title: "Admissions Forum de L'Excellence",
       subtitle: "Inscrivez votre enfant dans notre établissement d'excellence, au cœur de Médinatoul Salam.",
       primaryButtonText: "Commencer l'inscription", primaryButtonLink: "#process",
-      secondaryButtonText: "Nous contacter", secondaryButtonLink: "#contact",
+      secondaryButtonText: "Nous contacter", secondaryButtonLink: "https://wa.me/221775368254",
       videoSrc: "/excz.mp4", posterSrc: "/admissions-hero.jpg",
       trustItems: [
         { id: 'ad-trust-1', icon: 'MapPin', label: "Médinatoul Salam · Mbour" },

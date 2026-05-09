@@ -10,8 +10,19 @@ export const createAppointmentValidation = [
   body('appointmentType').isIn(['ACADEMIC_ADVISING', 'PARENT_CONFERENCE', 'COUNSELING', 'ADMINISTRATIVE', 'TUTORING']).withMessage('Type de rendez-vous invalide'),
   body('scheduledDatetime').isISO8601().withMessage('Date et heure requises'),
   body('durationMinutes').isInt({ min: 15, max: 180 }).withMessage('Durée invalide (15-180 minutes)'),
-  body('location').optional().isLength({ min: 2 }).withMessage('Localisation invalide'),
-  body('notes').optional().isLength({ max: 500 }).withMessage('Notes trop longues')
+  // Location is optional and free-form. Treat empty / whitespace-only strings
+  // as "not provided" so the modal's untouched text input does not trip the
+  // validator, and cap length to the DB column (100 chars).
+  body('location')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Le lieu ne doit pas dépasser 100 caractères'),
+  body('notes')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Les notes ne doivent pas dépasser 500 caractères')
 ];
 
 export const getAppointments = async (req: AuthenticatedRequest, res: Response) => {
